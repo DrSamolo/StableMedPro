@@ -48,15 +48,21 @@ export default function ChatIndexPage() {
 
   if (isLoading) {
     return (
-      <section className="ui-state-box ui-state-loading flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-2xl text-sm">
-        <p>Chargement des conversations...</p>
+      <section className="ui-state-box ui-state-loading motion-fade-up flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-md text-sm">
+        <div className="text-center">
+          <p className="ui-state-title">Chargement des conversations...</p>
+          <p className="ui-state-text">Préparation de votre espace de discussion.</p>
+        </div>
       </section>
     );
   }
 
   return (
-    <section className="ui-state-box ui-state-empty flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-2xl text-sm">
-      <p>Aucune conversation disponible.</p>
+    <section className="ui-state-box ui-state-empty motion-fade-up flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-md text-sm">
+      <div className="text-center">
+        <p className="ui-state-title">Aucune conversation disponible</p>
+        <p className="ui-state-text">Créez un channel ou un DM pour commencer.</p>
+      </div>
     </section>
   );
 }

@@ -84,8 +84,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const fetchProfile = async (userId: string) => {
-    if (profileCache && profileCache.userId === userId && Date.now() - profileCache.at < PROFILE_CACHE_TTL_MS) {
+  const fetchProfile = async (userId: string, options?: { force?: boolean }) => {
+    const force = options?.force ?? false;
+    if (!force && profileCache && profileCache.userId === userId && Date.now() - profileCache.at < PROFILE_CACHE_TTL_MS) {
       setProfile(profileCache.profile);
       if (profileCache.profile.role) {
         void fetchPermissions(profileCache.profile.role);
@@ -197,7 +198,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshProfile = async () => {
     if (user) {
-      await fetchProfile(user.id);
+      profileCache = null;
+      await fetchProfile(user.id, { force: true });
     }
   };
 

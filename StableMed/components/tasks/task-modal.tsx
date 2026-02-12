@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarDays, Loader2, Search, X } from "lucide-react";
+import { CalendarDays, Loader2, Search } from "lucide-react";
 import { SubmitHandler, useForm, useWatch } from "react-hook-form";
 import { format } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 
+import { SlideOver } from "@/components/Common";
 import { cn } from "@/lib/utils/cn";
 import { supabase } from "@/lib/supabase";
 import { TaskPrioritySchema, TaskStatusSchema } from "@/schemas/tasks";
@@ -41,10 +42,10 @@ const taskModalFormSchema = z.object({
 type TaskModalFormValues = z.infer<typeof taskModalFormSchema>;
 
 const priorityStyles: Record<z.infer<typeof TaskPrioritySchema>, string> = {
-  low: "border-zinc-200 text-zinc-600 hover:border-zinc-300",
-  medium: "border-blue-200 text-blue-700 hover:border-blue-300",
-  high: "border-amber-200 text-amber-700 hover:border-amber-300",
-  critical: "border-rose-200 text-rose-700 hover:border-rose-300",
+  low: "border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-300",
+  medium: "border-slate-200 bg-slate-50 text-slate-700 hover:border-slate-300",
+  high: "border-amber-100 bg-amber-50 text-amber-700 hover:border-amber-200",
+  critical: "border-rose-100 bg-rose-50 text-rose-700 hover:border-rose-200",
 };
 
 function toLocalDateTimeInput(isoDate: string | null | undefined) {
@@ -242,36 +243,20 @@ export function TaskModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-zinc-900/35 p-4">
-      <div className="w-full max-w-2xl rounded-2xl border border-zinc-200 bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-zinc-100 px-6 py-5">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-zinc-400">New task</p>
-            <h2 className="text-xl font-semibold text-zinc-900">
-              {initialTask ? "Update next step" : "Capture next steps"}
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={closeModal}
-            className="rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
-            aria-label="Close task modal"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="space-y-5 px-6 py-6"
-        >
+    <SlideOver
+      isOpen={isOpen}
+      onClose={closeModal}
+      title={initialTask ? "Modifier la tache" : "Nouvelle tache"}
+      maxWidth="xl"
+    >
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Title</label>
+            <label className="ui-field-label">Titre</label>
             <input
               autoFocus
               {...form.register("title")}
-              className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900"
-              placeholder="Follow up with ..."
+              className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900"
+              placeholder="Ex: Relancer ce prospect..."
             />
             {form.formState.errors.title ? (
               <p className="text-xs text-rose-600">{form.formState.errors.title.message}</p>
@@ -279,48 +264,48 @@ export function TaskModal({
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Description</label>
+            <label className="ui-field-label">Description</label>
             <textarea
               {...form.register("description")}
-              rows={4}
-              className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900"
-              placeholder="Context and next action..."
+              rows={2}
+              className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900"
+              placeholder="Contexte et prochaine action..."
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Related lead</label>
-            <div className="rounded-xl border border-zinc-200 p-3">
+            <label className="ui-field-label">Lead associe</label>
+            <div className="rounded-md border border-zinc-200 p-3">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-2.5 text-zinc-400" size={16} />
                 <input
                   value={leadSearch}
                   onChange={(event) => setLeadSearch(event.target.value)}
-                  placeholder="Search lead or company..."
-                  className="w-full rounded-lg border border-zinc-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-zinc-900"
+                  placeholder="Rechercher un lead..."
+                  className="w-full rounded-md border border-zinc-200 py-2 pl-9 pr-3 text-sm outline-none focus:border-zinc-900"
                 />
               </div>
 
-              <div className="mt-2 max-h-40 space-y-1 overflow-y-auto">
-                {loadingLeads ? <p className="px-2 py-2 text-xs text-zinc-500">Loading leads...</p> : null}
+              <div className="mt-2 max-h-24 space-y-1 overflow-y-auto pr-1">
+                {loadingLeads ? <p className="px-2 py-2 text-xs text-zinc-500">Chargement...</p> : null}
                 {leadOptions.map((lead) => (
                   <button
                     key={lead.id}
                     type="button"
                     onClick={() => form.setValue("lead_id", lead.id, { shouldDirty: true })}
                     className={cn(
-                      "flex w-full items-start justify-between rounded-lg px-2 py-2 text-left transition",
+                      "flex w-full items-start justify-between rounded-md px-2 py-1.5 text-left transition",
                       selectedLeadId === lead.id ? "bg-zinc-100" : "hover:bg-zinc-50",
                     )}
                   >
                     <span className="text-sm font-medium text-zinc-800">{lead.name ?? "Lead sans nom"}</span>
-                    <span className="text-xs text-zinc-500">{lead.client_reference ?? "No company"}</span>
+                    <span className="text-xs text-zinc-500">{lead.client_reference ?? "Sans societe"}</span>
                   </button>
                 ))}
               </div>
               {selectedLead ? (
                 <p className="mt-2 text-xs text-zinc-500">
-                  Selected: <span className="font-medium text-zinc-800">{selectedLead.name}</span>
+                  Selection: <span className="font-medium text-zinc-800">{selectedLead.name}</span>
                 </p>
               ) : null}
             </div>
@@ -328,34 +313,34 @@ export function TaskModal({
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Due date & time
+              <label className="ui-field-label">
+                Date et heure
               </label>
               <div className="relative">
                 <CalendarDays className="pointer-events-none absolute right-3 top-2.5 text-zinc-500" size={16} />
                 <input
                   type="datetime-local"
                   {...form.register("due_at_local")}
-                  className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 pr-10 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 [&::-webkit-calendar-picker-indicator]:opacity-0"
+                    className="w-full rounded-md border border-zinc-200 px-3 py-2 pr-10 text-sm text-zinc-900 shadow-sm outline-none transition focus:border-zinc-900 [&::-webkit-calendar-picker-indicator]:opacity-0"
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Status</label>
+              <label className="ui-field-label">Statut</label>
               <select
                 {...form.register("status")}
-                className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm outline-none transition focus:border-zinc-900"
+                className="w-full rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none transition focus:border-zinc-900"
               >
-                <option value="todo">To do</option>
-                <option value="in_progress">In progress</option>
-                <option value="done">Done</option>
+                <option value="todo">A faire</option>
+                <option value="in_progress">En cours</option>
+                <option value="done">Terminee</option>
               </select>
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Priority</label>
+            <label className="ui-field-label">Priorite</label>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
               {(Object.keys(priorityStyles) as Array<keyof typeof priorityStyles>).map((priority) => {
                 const checked = selectedPriority === priority;
@@ -365,9 +350,9 @@ export function TaskModal({
                     type="button"
                     onClick={() => form.setValue("priority", priority, { shouldDirty: true })}
                     className={cn(
-                      "rounded-xl border px-3 py-2 text-sm font-medium capitalize transition",
+                      "rounded-md border px-3 py-2 text-sm font-medium capitalize transition",
                       priorityStyles[priority],
-                      checked ? "ring-1 ring-zinc-900" : "bg-white",
+                      checked ? "ring-1 ring-zinc-700" : "",
                     )}
                   >
                     {priority}
@@ -377,25 +362,24 @@ export function TaskModal({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-zinc-100 pt-4">
+          <div className="flex justify-end gap-2 border-t border-zinc-100 pt-3">
             <button
               type="button"
               onClick={closeModal}
-              className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+              className="rounded-md border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
             >
-              Cancel
+              Annuler
             </button>
             <button
               type="submit"
               disabled={saveTaskMutation.isPending}
-              className="inline-flex items-center rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex items-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {saveTaskMutation.isPending ? <Loader2 className="mr-2 animate-spin" size={14} /> : null}
-              {initialTask ? "Save changes" : "Create task"}
+              {initialTask ? "Enregistrer" : "Creer la tache"}
             </button>
           </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </SlideOver>
   );
 }

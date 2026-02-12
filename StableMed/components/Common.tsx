@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { createPortal } from "react-dom";
 import { X, ChevronDown, Check } from 'lucide-react';
 
 interface CardProps {
@@ -8,12 +9,25 @@ interface CardProps {
   hoverable?: boolean; // New prop for explicit interaction
 }
 
+export const BrandMark: React.FC<{ className?: string }> = ({ className = "" }) => (
+  <div className={`flex h-8 w-8 items-center justify-center rounded-md bg-zinc-900 ${className}`}>
+    <div className="h-4 w-4 rounded-sm bg-white" />
+  </div>
+);
+
+export const BrandLockup: React.FC<{ className?: string; compact?: boolean }> = ({ className = "", compact = false }) => (
+  <div className={`flex items-center gap-3 ${className}`}>
+    <BrandMark />
+    {!compact ? <span className="text-lg font-semibold tracking-tight text-primary">StableMed</span> : null}
+  </div>
+);
+
 export const Card: React.FC<CardProps> = ({ children, className = '', noPadding = false, hoverable = false }) => {
   // If hoverable is true or if className doesn't explicitly disable pointer events, we add micro-interactions
   const interactionClass = hoverable || className.includes('cursor-pointer') ? 'micro-interaction' : '';
 
   return (
-    <div className={`bg-surface border border-border rounded-xl shadow-subtle transition-all duration-200 ${interactionClass} ${className}`}>
+    <div className={`bg-surface border border-border rounded-md shadow-subtle transition-colors duration-150 motion-fade-up ${interactionClass} ${className}`}>
       <div className={noPadding ? '' : 'p-6'}>
         {children}
       </div>
@@ -29,27 +43,51 @@ interface BadgeProps {
 
 export const Badge: React.FC<BadgeProps> = ({ children, variant = 'neutral', className = '' }) => {
   const styles = {
-    neutral: 'bg-gray-50 text-gray-600 border-gray-200',
-    success: 'bg-emerald-50 text-emerald-700 border-emerald-100', 
-    warning: 'bg-orange-50 text-orange-700 border-orange-100', 
-    blue: 'bg-sky-50 text-sky-700 border-sky-100',
-    purple: 'bg-violet-50 text-violet-700 border-violet-100',
+    neutral: 'bg-slate-50 text-slate-600 border-slate-200',
+    success: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    warning: 'bg-amber-50 text-amber-700 border-amber-200',
+    blue: 'bg-slate-100 text-slate-700 border-slate-200',
+    purple: 'bg-violet-50 text-violet-700 border-violet-200',
   };
 
   return (
-    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium border uppercase tracking-wider ${styles[variant]} transition-colors duration-200 ${className}`}>
+    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${styles[variant]} transition-colors duration-150 ${className}`}>
       {children}
     </span>
   );
 };
 
 export const SectionTitle: React.FC<{ title: string; subtitle?: string; action?: React.ReactNode }> = ({ title, subtitle, action }) => (
-  <div className="mb-7 flex flex-wrap items-end justify-between gap-3 animate-enter delay-0">
+  <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
     <div>
-      <h1 className="text-2xl font-semibold text-primary tracking-tight">{title}</h1>
-      {subtitle && <p className="mt-1 text-sm text-secondary">{subtitle}</p>}
+      <h1 className="text-2xl font-semibold leading-tight text-primary tracking-tight">{title}</h1>
+      {subtitle && <p className="mt-1.5 text-[15px] leading-6 text-secondary">{subtitle}</p>}
     </div>
     {action && <div>{action}</div>}
+  </div>
+);
+
+export const PageHeader: React.FC<{
+  title: string;
+  subtitle?: string;
+  meta?: string;
+  action?: React.ReactNode;
+}> = ({ title, subtitle, meta, action }) => (
+  <div className="mb-7 border-b border-border pb-5">
+    <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        {meta ? <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">{meta}</p> : null}
+        <h1 className="text-[1.75rem] font-semibold leading-tight tracking-tight text-primary">{title}</h1>
+      </div>
+      {action ? <div className="flex items-center gap-2">{action}</div> : null}
+    </div>
+    {subtitle ? <p className="max-w-3xl text-[15px] leading-6 text-secondary">{subtitle}</p> : null}
+  </div>
+);
+
+export const DataToolbar: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => (
+  <div className={`mb-5 rounded-md border border-border bg-surface px-3 py-2.5 shadow-subtle ${className}`}>
+    {children}
   </div>
 );
 
@@ -62,10 +100,41 @@ export const Avatar: React.FC<{ name: string; src?: string | null; size?: 'sm' |
     lg: 'w-12 h-12 text-sm'
   };
   
-  if (src) {
+  const normalizedSrc = (() => {
+    if (!src) return null;
+    if (src.startsWith("http://") || src.startsWith("https://") || src.startsWith("data:") || src.startsWith("blob:")) {
+      return src;
+    }
+    const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!baseUrl) return src;
+
+    if (src.startsWith("/storage/v1/object/public/") || src.startsWith("storage/v1/object/public/")) {
+      const normalizedPath = src.startsWith("/") ? src : `/${src}`;
+      return `${baseUrl}${normalizedPath}`;
+    }
+
+    if (src.startsWith("/")) {
+      return `${baseUrl}${src}`;
+    }
+
+    const objectPath = src.replace(/^avatars\//, "");
+    return `${baseUrl}/storage/v1/object/public/avatars/${objectPath}`;
+  })();
+
+  if (normalizedSrc) {
       return (
-          <div className={`${sizeClasses[size]} rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0`}>
-              <img src={src} alt={name} className="w-full h-full object-cover" />
+          <div className={`${sizeClasses[size]} relative rounded-full bg-gray-100 border border-gray-200 overflow-hidden shrink-0`}>
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-50 text-gray-600 font-medium tracking-tight">
+                {initials}
+              </div>
+              <img
+                src={normalizedSrc}
+                alt={name}
+                className="relative z-[1] h-full w-full object-cover"
+                onError={(event) => {
+                  event.currentTarget.style.display = "none";
+                }}
+              />
           </div>
       );
   }
@@ -154,26 +223,25 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   }, []);
 
   const selectedLabel = options.find(o => o.value === value)?.label || placeholder;
-  const isSelected = value !== 'all' && value !== '';
 
   return (
     <div className={`relative ${className}`} ref={containerRef} style={{ minWidth }}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`ui-focus w-full flex items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2 text-sm shadow-sm transition-all duration-200 hover:border-gray-300 hover:bg-gray-50/50 ${isOpen ? 'border-gray-400 ring-2 ring-gray-100' : 'border-gray-200'} `}
+        className={`ui-focus motion-soft-hover flex h-9 w-full items-center justify-between gap-3 rounded-md border bg-white px-3 text-sm font-medium transition-colors duration-150 hover:border-zinc-300 hover:bg-zinc-100 ${isOpen ? 'border-zinc-300 bg-zinc-100' : 'border-zinc-200'} `}
       >
         <div className="flex items-center gap-2.5 truncate">
-          {Icon && <Icon size={15} className={`shrink-0 ${isSelected ? 'text-primary' : 'text-gray-400'}`} />}
-          <span className={`truncate text-[13px] font-medium ${isSelected ? 'text-primary' : 'text-secondary'}`}>
+          {Icon && <Icon size={15} className="shrink-0 text-zinc-400" />}
+          <span className="truncate text-sm text-zinc-600">
             {selectedLabel}
           </span>
         </div>
-        <ChevronDown size={14} className={`text-gray-400 transition-transform duration-200 shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={14} className={`shrink-0 text-zinc-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute top-[calc(100%+6px)] left-0 w-full min-w-[200px] bg-white border border-gray-100 rounded-lg shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150 overflow-hidden py-1">
+        <div className="motion-scale-in absolute left-0 top-[calc(100%+6px)] z-50 w-full min-w-[200px] overflow-hidden rounded-md border border-zinc-200 bg-white py-1 shadow-subtle">
           <div className="max-h-60 overflow-y-auto">
             {options.map((option) => (
               <button
@@ -182,7 +250,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                   onChange(option.value);
                   setIsOpen(false);
                 }}
-                className={`ui-focus flex w-full items-center justify-between px-3 py-2 text-left text-[13px] transition-colors ${value === option.value ? 'bg-gray-50 text-primary font-medium' : 'text-secondary hover:bg-gray-50 hover:text-primary'}`}
+                className={`ui-focus flex w-full items-center justify-between px-3 py-2 text-left text-[13px] transition-colors ${value === option.value ? 'bg-zinc-50 text-primary font-medium' : 'text-secondary hover:bg-zinc-50 hover:text-primary'}`}
               >
                 <span className="truncate">{option.label}</span>
                 {value === option.value && <Check size={14} className="text-black" />}
@@ -200,10 +268,22 @@ interface SlideOverProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  maxWidth?: "md" | "lg" | "xl" | "2xl";
 }
 
-export const SlideOver: React.FC<SlideOverProps> = ({ isOpen, onClose, title, children }) => {
+export const SlideOver: React.FC<SlideOverProps> = ({ isOpen, onClose, title, children, maxWidth = "md" }) => {
   const [visible, setVisible] = useState(isOpen);
+  const [mounted, setMounted] = useState(false);
+  const widthClass = {
+    md: "max-w-md",
+    lg: "max-w-lg",
+    xl: "max-w-xl",
+    "2xl": "max-w-2xl",
+  }[maxWidth];
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -215,39 +295,40 @@ export const SlideOver: React.FC<SlideOverProps> = ({ isOpen, onClose, title, ch
     return () => window.clearTimeout(hideTimer);
   }, [isOpen]);
 
-  if (!visible && !isOpen) return null;
+  if (!mounted || (!visible && !isOpen)) return null;
 
-  return (
-    <div className="fixed inset-0 overflow-hidden z-50">
+  return createPortal(
+    <div className="fixed inset-0 overflow-hidden z-50 motion-page-enter">
       <div className="absolute inset-0 overflow-hidden">
         {/* Backdrop with Blur */}
-        <div 
-          className={`absolute inset-0 bg-gray-900/20 backdrop-blur-sm transition-opacity ease-sweet duration-500 ${isOpen ? 'opacity-100' : 'opacity-0'}`} 
+        <div
+          className={`absolute inset-0 bg-slate-900/10 backdrop-blur-sm transition-opacity ease-sweet duration-300 ${isOpen ? 'opacity-100' : 'opacity-0'}`}
           onClick={onClose}
         />
         
         {/* Panel Slide In - Using 'ease-sweet' custom bezier */}
-        <div className={`pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10 transform transition-transform ease-sweet duration-500 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-          <div className="pointer-events-auto w-screen max-w-md">
-            <div className="flex h-full flex-col overflow-y-scroll border-l border-border bg-surface shadow-2xl">
-              <div className="px-6 py-6 border-b border-border bg-gray-50/50 flex items-center justify-between">
+        <div className={`pointer-events-none fixed inset-y-0 right-0 flex max-w-full transform transition-transform ease-sweet duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className={`pointer-events-auto w-screen ${widthClass}`}>
+            <div className="flex h-full flex-col overflow-y-scroll border-l border-border bg-surface shadow-float">
+              <div className="flex items-center justify-between border-b border-border bg-zinc-50/70 px-6 py-5">
                 <h2 className="text-lg font-medium text-primary">{title}</h2>
                 <button 
                   type="button" 
-                  className="ui-focus rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-500"
+                  className="ui-focus rounded-sm p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-500"
                   onClick={onClose}
                 >
                   <X size={20} strokeWidth={1.5} />
                 </button>
               </div>
-              <div className="relative mt-6 flex-1 px-4 sm:px-6 pb-6">
+              <div className="relative mt-6 flex-1 px-4 pb-6 sm:px-6">
                 {children}
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -258,19 +339,28 @@ interface ModalProps {
 }
 
 export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 overflow-y-auto motion-page-enter">
       <div className="flex min-h-screen items-center justify-center p-4 text-center sm:p-0">
         {/* Backdrop with Blur */}
-        <div 
-            className="fixed inset-0 bg-gray-900/20 backdrop-blur-sm transition-opacity ease-sweet duration-300 animate-in fade-in" 
+        <div
+            className="fixed inset-0 bg-slate-900/25 transition-opacity ease-sweet duration-200"
             onClick={onClose}
         ></div>
         
         {/* Content with Zoom/Fade Entry */}
-        <div className="relative transform overflow-hidden rounded-xl border border-gray-100 bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-sm animate-enter">
+        <div className="relative max-h-[calc(100vh-2rem)] transform overflow-hidden rounded-lg border border-zinc-200 bg-white text-left shadow-card transition-all sm:my-8 sm:w-full sm:max-w-sm motion-scale-in">
             {children}
         </div>
       </div>

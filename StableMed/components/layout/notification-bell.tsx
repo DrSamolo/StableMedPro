@@ -137,19 +137,17 @@ export function NotificationBell() {
       <button
         type="button"
         onClick={() => setIsOpen((value) => !value)}
-        className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-border bg-white text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900"
+        className="relative inline-flex h-9 w-9 items-center justify-center rounded-md border border-transparent bg-transparent text-zinc-500 transition hover:bg-white hover:text-zinc-900"
         aria-label="Notifications"
       >
         <Bell className="h-5 w-5" />
         {unreadCount > 0 ? (
-          <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold text-white">
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
+          <span className="absolute right-1 top-1 inline-flex h-1.5 w-1.5 rounded-full bg-zinc-500" />
         ) : null}
       </button>
 
       {isOpen ? (
-        <div className="absolute right-0 top-12 z-40 w-[22rem] rounded-xl border border-zinc-200 bg-white shadow-xl">
+        <div className="absolute right-0 top-12 z-40 w-[22rem] rounded-md border border-zinc-200 bg-white shadow-card">
           <div className="flex items-center justify-between border-b border-zinc-100 px-3 py-2">
             <p className="text-sm font-semibold text-zinc-900">Notifications</p>
             <button
@@ -164,21 +162,31 @@ export function NotificationBell() {
 
           <div className="max-h-80 overflow-y-auto p-2">
             {notificationsQuery.isLoading ? (
-              <p className="px-2 py-4 text-center text-sm text-zinc-500">Chargement...</p>
+              <div className="ui-state-box ui-state-loading py-4 text-center">
+                <div className="ui-state-stack">
+                  <p className="ui-state-title">Chargement...</p>
+                  <p className="ui-state-text">Récupération des notifications.</p>
+                </div>
+              </div>
             ) : notifications.length === 0 ? (
-              <p className="px-2 py-4 text-center text-sm text-zinc-500">Aucune notification.</p>
+              <div className="ui-state-box ui-state-empty py-4 text-center">
+                <div className="ui-state-stack">
+                  <p className="ui-state-title">Aucune notification</p>
+                  <p className="ui-state-text">Les prochaines alertes apparaîtront ici.</p>
+                </div>
+              </div>
             ) : (
               notifications.map((notification) => (
                 <article
                   key={notification.id}
                   className={cn(
                     "rounded-lg border px-2.5 py-2",
-                    notification.is_read ? "border-zinc-100 bg-white" : "border-blue-100 bg-blue-50/40",
+                    notification.is_read ? "border-zinc-100 bg-white" : "border-zinc-200 bg-zinc-50/80",
                   )}
                 >
                   <p className="text-xs font-semibold text-zinc-800">{notification.title}</p>
                   <p className="mt-0.5 text-xs text-zinc-600">{notification.message}</p>
-                  <p className="mt-1 text-[11px] text-zinc-400">{formatNotificationTime(notification.created_at)}</p>
+                  <p className="mt-1 text-[11px] text-zinc-500">{formatNotificationTime(notification.created_at)}</p>
                 </article>
               ))
             )}

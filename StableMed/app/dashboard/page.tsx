@@ -40,7 +40,10 @@ export default function DashboardPage() {
   if (!Dashboard) {
     return (
       <div className="ui-state-box ui-state-loading flex min-h-[280px] items-center justify-center text-sm">
-        <p>Chargement du dashboard...</p>
+        <div className="ui-state-stack">
+          <p className="ui-state-title">Chargement du dashboard...</p>
+          <p className="ui-state-text">Préparation des indicateurs principaux.</p>
+        </div>
       </div>
     );
   }

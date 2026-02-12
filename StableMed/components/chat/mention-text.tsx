@@ -22,7 +22,7 @@ export function MentionText({ content }: MentionTextProps) {
         return (
           <span
             key={`${part}-${index}`}
-            className="rounded bg-blue-100 px-1 py-0.5 text-blue-800"
+            className="rounded border border-zinc-200 bg-zinc-100 px-1 py-0.5 text-zinc-700"
           >
             {part}
           </span>

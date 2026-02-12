@@ -11,13 +11,13 @@ const NullableTrimmedNonEmptyStringSchema = z.preprocess(
   },
   z.string().min(1).max(160).nullable(),
 );
-const NullableUrlSchema = z.preprocess(
+const NullableAvatarSchema = z.preprocess(
   (value) => {
     if (typeof value !== "string") return value;
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : null;
   },
-  z.string().url().nullable(),
+  z.string().min(1).max(2048).nullable(),
 );
 
 export const ChatChannelSchema = z
@@ -40,7 +40,7 @@ export const ChatMessageSchema = z
     channel_id: z.string().uuid(),
     sender_id: z.string().uuid(),
     sender_name: z.string().trim().min(1).max(160),
-    sender_avatar_url: NullableUrlSchema.optional(),
+    sender_avatar_url: NullableAvatarSchema.optional(),
     body: z.string().trim().min(1).max(4000),
     metadata: z.record(z.unknown()),
     edited_at: IsoDateTimeSchema.nullable(),
@@ -63,7 +63,7 @@ export const CreateChatMessageInputSchema = z
     channel_id: z.string().uuid(),
     sender_id: z.string().uuid(),
     sender_name: z.string().trim().min(1).max(160),
-    sender_avatar_url: NullableUrlSchema.optional(),
+    sender_avatar_url: NullableAvatarSchema.optional(),
     body: z.string().trim().min(1).max(4000),
     metadata: z.record(z.unknown()).default({}),
   })
@@ -74,7 +74,7 @@ export const ChatActorSchema = z
     id: z.string().uuid(),
     team_id: z.string().uuid().nullable(),
     display_name: NullableTrimmedNonEmptyStringSchema,
-    avatar_url: NullableUrlSchema,
+    avatar_url: NullableAvatarSchema,
   })
   .strict();
 

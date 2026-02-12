@@ -5,14 +5,14 @@ import { useNotification, NotificationType } from '../contexts/NotificationConte
 const icons: Record<NotificationType, React.ReactNode> = {
   success: <CheckCircle size={20} className="text-emerald-500" />,
   error: <AlertCircle size={20} className="text-rose-500" />,
-  info: <Info size={20} className="text-blue-500" />,
+  info: <Info size={20} className="text-zinc-500" />,
   warning: <AlertTriangle size={20} className="text-orange-500" />,
 };
 
 const styles: Record<NotificationType, string> = {
   success: 'bg-white border-emerald-100',
   error: 'bg-white border-rose-100',
-  info: 'bg-white border-blue-100',
+  info: 'bg-white border-zinc-200',
   warning: 'bg-white border-orange-100',
 };
 
@@ -24,7 +24,7 @@ export const NotificationsContainer: React.FC = () => {
       {notifications.map((notification) => (
         <div
           key={notification.id}
-          className={`pointer-events-auto transform transition-all duration-300 ease-in-out translate-x-0 opacity-100 flex items-start gap-3 p-4 rounded-lg shadow-float border ${styles[notification.type]} animate-slide-in`}
+          className={`pointer-events-auto motion-toast-enter motion-soft-hover flex items-start gap-3 rounded-lg border p-4 shadow-float ${styles[notification.type]}`}
         >
           <div className="shrink-0 mt-0.5">{icons[notification.type]}</div>
           <div className="flex-1 pt-0.5">

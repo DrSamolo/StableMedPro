@@ -6,17 +6,19 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Search,
   CheckSquare,
   Kanban,
   LayoutDashboard,
   LogOut,
   MessageSquare,
+  PanelLeftClose,
   Settings,
   ShoppingBag,
   Users,
 } from "lucide-react";
 
-import { Avatar } from "@/components/Common";
+import { Avatar, BrandLockup } from "@/components/Common";
 import { PerfObserver } from "@/components/perf/perf-observer";
 import { useAuth } from "@/contexts/AuthContext";
 import { setCached } from "@/lib/perf/cache";
@@ -36,12 +38,12 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/dashboard/tasks", label: "Tasks", icon: CheckSquare },
+  { href: "/dashboard/tasks", label: "Tâches", icon: CheckSquare },
   { href: "/dashboard/chat", label: "Chat", icon: MessageSquare },
   { href: "/dashboard/leads", label: "Leads", icon: Users },
   { href: "/dashboard/pipeline", label: "Pipeline", icon: Kanban },
   { href: "/dashboard/catalog", label: "Catalogue", icon: ShoppingBag },
-  { href: "/dashboard/settings", label: "Parametres", icon: Settings },
+  { href: "/dashboard/settings", label: "Paramètres", icon: Settings },
 ];
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
@@ -50,6 +52,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { session, profile, loading, signOut } = useAuth();
   const userId = profile?.id ?? null;
   const [chatUnreadRpcAvailable, setChatUnreadRpcAvailable] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const chatUnreadQuery = useQuery({
     queryKey: ["sidebar-chat-unread-dot", userId],
@@ -79,6 +82,17 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   });
 
   const hasChatUnread = (chatUnreadQuery.data ?? 0) > 0;
+
+  useEffect(() => {
+    const savedState = window.localStorage.getItem("stablemed.sidebar.collapsed");
+    if (savedState === "1") {
+      setIsSidebarCollapsed(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("stablemed.sidebar.collapsed", isSidebarCollapsed ? "1" : "0");
+  }, [isSidebarCollapsed]);
 
   useEffect(() => {
     if (!loading && !session) {
@@ -146,17 +160,22 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex min-h-screen bg-background text-primary font-sans selection:bg-gray-200">
+    <div className="flex min-h-screen bg-background font-sans text-primary selection:bg-gray-200 motion-page-enter">
       <PerfObserver />
-      <aside className="fixed left-0 top-0 z-20 flex h-screen w-64 flex-col border-r border-border bg-surface/95 backdrop-blur-sm">
-        <div className="mb-6 flex h-16 items-center px-6">
-          <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-zinc-900 to-zinc-700 shadow-sm">
-            <div className="h-4 w-4 rounded-sm bg-white/90" />
-          </div>
-          <span className="text-lg font-semibold tracking-tight text-primary">StableMed</span>
+      <aside
+        className={cn(
+          "fixed left-0 top-0 z-20 flex h-screen flex-col border-r border-border bg-surface motion-slide-in-right transition-[width] duration-300 ease-sweet",
+          isSidebarCollapsed ? "w-[74px]" : "w-64",
+        )}
+      >
+        <div
+          className={cn("mb-6 flex h-16 items-center", isSidebarCollapsed ? "justify-center px-2" : "px-6")}
+          data-stagger-item="0"
+        >
+          <BrandLockup compact={isSidebarCollapsed} />
         </div>
 
-        <nav className="flex-1 space-y-1 px-3">
+        <nav className={cn("flex-1 space-y-1", isSidebarCollapsed ? "px-2" : "px-3")}>
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
@@ -166,48 +185,95 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "ui-focus group flex w-full items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                  "ui-focus group flex w-full items-center rounded-md py-2.5 text-sm font-medium transition-all motion-soft-hover motion-soft-press",
+                  isSidebarCollapsed ? "justify-center px-2" : "px-3",
                   isActive
-                    ? "border border-zinc-200 bg-white text-primary shadow-sm"
-                    : "text-secondary hover:bg-gray-50 hover:text-primary",
+                    ? "border border-zinc-200 bg-zinc-100 text-primary"
+                    : "text-secondary hover:bg-zinc-50 hover:text-primary",
                 )}
+                data-stagger-item="1"
               >
                 <Icon
                   size={20}
                   strokeWidth={1.5}
                   className={cn(
-                    "mr-3 shrink-0 transition-colors",
-                    isActive ? "text-primary" : "text-gray-400 group-hover:text-primary",
+                    "shrink-0 transition-colors",
+                    isSidebarCollapsed ? "mr-0" : "mr-3",
+                    isActive ? "text-primary" : "text-zinc-400 group-hover:text-primary",
                   )}
                 />
-                <span className="truncate">{item.label}</span>
+                {!isSidebarCollapsed ? <span className="truncate">{item.label}</span> : null}
                 {item.href === "/dashboard/chat" && hasChatUnread ? (
-                  <span className="ml-auto inline-flex h-2 w-2 rounded-full bg-sky-500/80" aria-hidden="true" />
+                  <span
+                    className={cn(
+                      "inline-flex h-2 w-2 rounded-full bg-zinc-500/80",
+                      isSidebarCollapsed ? "absolute right-2 top-2" : "ml-auto",
+                    )}
+                    aria-hidden="true"
+                  />
                 ) : null}
               </Link>
             );
           })}
         </nav>
 
-        <div className="border-t border-border p-3">
+        <div className={cn("border-t border-border", isSidebarCollapsed ? "p-2" : "p-3")}>
+          <button
+            onClick={() => setIsSidebarCollapsed((value) => !value)}
+            className={cn(
+              "ui-focus mb-1 flex w-full items-center rounded-md py-2 text-sm text-secondary transition-colors hover:bg-zinc-50 hover:text-primary",
+              isSidebarCollapsed ? "justify-center px-1" : "px-2",
+            )}
+            aria-label={isSidebarCollapsed ? "Agrandir la barre latérale" : "Réduire la barre latérale"}
+          >
+            <PanelLeftClose
+              size={18}
+              strokeWidth={1.5}
+              className={cn("transition-transform duration-300 ease-sweet", isSidebarCollapsed ? "rotate-180" : "")}
+            />
+            {!isSidebarCollapsed ? <span className="ml-3">Réduire</span> : null}
+          </button>
           <button
             onClick={() => {
               void signOut().then(() => router.replace("/login"));
             }}
-            className="ui-focus flex w-full items-center rounded-lg px-2 py-2 text-sm text-secondary transition-colors hover:bg-rose-50 hover:text-rose-600"
+            className={cn(
+              "ui-focus flex w-full items-center rounded-md py-2 text-sm text-secondary transition-colors hover:bg-rose-50 hover:text-rose-700",
+              isSidebarCollapsed ? "justify-center px-1" : "px-2",
+            )}
           >
-            <LogOut size={20} strokeWidth={1.5} className="mr-3" />
-            <span>Deconnexion</span>
+            <LogOut size={18} strokeWidth={1.5} className={cn(isSidebarCollapsed ? "mr-0" : "mr-3")} />
+            {!isSidebarCollapsed ? <span>Déconnexion</span> : null}
           </button>
         </div>
       </aside>
 
-      <main className="ml-64 flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex h-16 items-center justify-end gap-3 border-b border-border bg-background/80 px-8 backdrop-blur-sm">
+      <main
+        className={cn(
+          "flex min-w-0 flex-1 flex-col transition-[margin-left] duration-300 ease-sweet",
+          isSidebarCollapsed ? "ml-[74px]" : "ml-64",
+        )}
+      >
+        <header className="sticky top-0 z-10 flex h-16 items-center justify-between gap-3 border-b border-border bg-background/60 px-8 backdrop-blur-sm motion-fade-up">
+          <div className="flex min-w-0 flex-1 items-center gap-3" data-stagger-item="1">
+            <div className="relative w-full max-w-md">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="text"
+                placeholder="Rechercher... (⌘K)"
+                className="h-10 w-full rounded-md border border-white/35 bg-white/10 pl-10 pr-10 text-sm text-zinc-700 placeholder:text-zinc-500 outline-none backdrop-blur-xl transition hover:bg-white/15 focus:border-white/45 focus:bg-white/20 focus-visible:shadow-[0_0_0_3px_rgba(255,255,255,0.18)] motion-soft-hover"
+              />
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md border border-white/40 bg-white/15 px-1.5 py-0.5 text-[11px] text-zinc-500 backdrop-blur-xl">
+                ⌘K
+              </span>
+            </div>
+          </div>
           <NotificationBell />
+          <div className="h-7 w-px bg-border" />
           <button
             onClick={() => router.push("/dashboard/settings")}
             className="ui-focus flex items-center gap-3 rounded transition-opacity hover:opacity-80"
+            data-stagger-item="2"
           >
             <div className="text-right">
               <p className="text-sm font-medium text-primary">{profileLabel}</p>
@@ -216,7 +282,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <Avatar name={profile?.full_name || profile?.email || "User"} src={profile?.avatar_url} />
           </button>
         </header>
-        <div className="flex-1 overflow-y-auto p-6 lg:p-8">{children}</div>
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 xl:p-9 motion-fade-up">{children}</div>
       </main>
     </div>
   );

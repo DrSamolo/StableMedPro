@@ -92,9 +92,24 @@ export function ChatConversationBootstrap({ conversationId }: ChatConversationBo
 
       const snapshotCacheKey = `chat:bootstrap:${conversationId}:${user.id}`;
       const cachedSnapshot = getCached<ChatBootstrapSnapshot>(snapshotCacheKey, CHAT_BOOTSTRAP_CACHE_TTL_MS);
+      const liveActorOverride = ChatActorSchema.parse({
+        id: user.id,
+        team_id: profile?.team_id ?? cachedSnapshot?.actor.team_id ?? null,
+        display_name:
+          profile?.full_name ??
+          (typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : null) ??
+          user.email ??
+          cachedSnapshot?.actor.display_name ??
+          null,
+        avatar_url:
+          profile?.avatar_url ??
+          (typeof user.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : null) ??
+          cachedSnapshot?.actor.avatar_url ??
+          null,
+      });
 
       if (cachedSnapshot && isMounted) {
-        setActor(cachedSnapshot.actor);
+        setActor(liveActorOverride);
         setTitle(cachedSnapshot.title);
         setInitialMessages(cachedSnapshot.initialMessages);
         setCanDelete(cachedSnapshot.canDelete);
@@ -126,19 +141,7 @@ export function ChatConversationBootstrap({ conversationId }: ChatConversationBo
         return;
       }
 
-      const actorValue = ChatActorSchema.parse({
-        id: user.id,
-        team_id: profile?.team_id ?? null,
-        display_name:
-          profile?.full_name ??
-          (typeof user.user_metadata?.full_name === "string" ? user.user_metadata.full_name : null) ??
-          user.email ??
-          null,
-        avatar_url:
-          profile?.avatar_url ??
-          (typeof user.user_metadata?.avatar_url === "string" ? user.user_metadata.avatar_url : null) ??
-          null,
-      });
+      const actorValue = liveActorOverride;
 
       const header = conversationData as ConversationHeader;
       const actorRole = profile?.role?.toLowerCase() ?? null;
@@ -212,16 +215,22 @@ export function ChatConversationBootstrap({ conversationId }: ChatConversationBo
 
   if (isLoading) {
     return (
-      <section className="ui-state-box ui-state-loading flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-2xl text-sm">
-        <p>Chargement de la conversation...</p>
+      <section className="ui-state-box ui-state-loading motion-fade-up flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-md text-sm">
+        <div className="text-center">
+          <p className="ui-state-title">Chargement de la conversation...</p>
+          <p className="ui-state-text">Récupération des messages et participants.</p>
+        </div>
       </section>
     );
   }
 
   if (!actor || error) {
     return (
-      <section className="ui-state-box ui-state-error flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-2xl text-sm">
-        <p>{error ?? "Impossible de charger la conversation."}</p>
+      <section className="ui-state-box ui-state-error motion-fade-up flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-md text-sm">
+        <div className="text-center">
+          <p className="ui-state-title">Conversation indisponible</p>
+          <p className="ui-state-text">{error ?? "Impossible de charger la conversation."}</p>
+        </div>
       </section>
     );
   }

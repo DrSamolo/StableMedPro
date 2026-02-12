@@ -43,23 +43,23 @@ type ViewMode = "list" | "calendar";
 
 const priorityPillClass: Record<TaskWithLead["priority"], string> = {
   low: "bg-zinc-100 text-zinc-700",
-  medium: "bg-blue-100 text-blue-700",
-  high: "bg-amber-100 text-amber-700",
-  critical: "bg-rose-100 text-rose-700",
+  medium: "bg-slate-100 text-slate-700",
+  high: "bg-amber-50 text-amber-700",
+  critical: "bg-rose-50 text-rose-700",
 };
 
 const priorityAccentClass: Record<TaskWithLead["priority"], string> = {
   low: "border-l-zinc-300",
-  medium: "border-l-blue-400",
-  high: "border-l-amber-400",
-  critical: "border-l-rose-500",
+  medium: "border-l-slate-300",
+  high: "border-l-amber-300",
+  critical: "border-l-rose-300",
 };
 
 const priorityDotClass: Record<TaskWithLead["priority"], string> = {
   low: "bg-zinc-400",
-  medium: "bg-blue-500",
-  high: "bg-amber-500",
-  critical: "bg-rose-600",
+  medium: "bg-slate-400",
+  high: "bg-amber-400",
+  critical: "bg-rose-400",
 };
 
 function startOfTomorrow(date = new Date()) {
@@ -111,7 +111,7 @@ function DraggableTask({ task, onOpen }: { task: TaskWithLead; onOpen: (task: Ta
       }}
       onClick={() => onOpen(task)}
       className={cn(
-        "w-full rounded-md border border-zinc-200 border-l-4 bg-white p-1.5 text-left shadow-sm transition hover:border-zinc-300",
+        "w-full rounded-md border border-zinc-200 border-l-4 bg-white px-1.5 py-1 text-left shadow-sm transition hover:border-zinc-300 motion-soft-hover motion-soft-press",
         priorityAccentClass[task.priority],
         isDragging ? "opacity-60" : "",
       )}
@@ -146,7 +146,7 @@ function DroppableDay({
     <div
       ref={setNodeRef}
       className={cn(
-        "h-40 rounded-xl border p-2",
+        "h-24 rounded-md border p-1.5 md:h-28 md:p-2 lg:h-32 motion-fade-up",
         isCurrentMonth ? "border-zinc-200 bg-white" : "border-zinc-100 bg-zinc-50",
         isOver ? "ring-2 ring-zinc-900" : "",
       )}
@@ -155,13 +155,13 @@ function DroppableDay({
         type="button"
         onClick={() => onOpenDay(day, tasks)}
         className={cn(
-          "mb-2 text-xs font-medium transition hover:text-zinc-900",
-          isCurrentMonth ? "text-zinc-700" : "text-zinc-400",
+          "mb-1.5 text-xs font-medium transition hover:text-zinc-900",
+          isCurrentMonth ? "text-zinc-700" : "text-zinc-500",
         )}
       >
         {format(day, "d")}
       </button>
-      <div className="h-[calc(100%-1.5rem)] space-y-1 overflow-y-auto pr-0.5">
+      <div className="h-[calc(100%-1.3rem)] space-y-1 overflow-y-auto pr-0.5">
         {tasks.slice(0, 2).map((task) => (
           <DraggableTask key={task.id} task={task} onOpen={onOpenTask} />
         ))}
@@ -169,9 +169,9 @@ function DroppableDay({
           <button
             type="button"
             onClick={() => onOpenDay(day, tasks)}
-            className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[10px] font-medium text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900"
+            className="inline-flex items-center rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[10px] font-medium text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900 motion-soft-hover motion-soft-press"
           >
-            +{tasks.length - 2} more
+            +{tasks.length - 2} plus
           </button>
         ) : null}
       </div>
@@ -189,7 +189,7 @@ function TaskRow({
   onOpenTask: (task: TaskWithLead) => void;
 }) {
   return (
-    <div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-2">
+    <div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 rounded-md border border-zinc-200 bg-white px-3 py-2 motion-fade-up">
       <input
         type="checkbox"
         checked={task.status === "done"}
@@ -207,7 +207,7 @@ function TaskRow({
           {task.leads?.name ?? "Lead"}
         </Link>
       ) : (
-        <span className="text-xs text-zinc-400">No lead</span>
+        <span className="text-xs text-zinc-400">Aucun lead</span>
       )}
     </div>
   );
@@ -366,15 +366,15 @@ export function TasksDashboard() {
   };
 
   return (
-    <div className="ui-page px-4 py-6 md:px-6">
+    <div className="ui-page px-3 py-5 md:px-6 md:py-6">
       <DailyBriefing userName={typeof userName === "string" ? userName : null} />
 
       <div className="ui-page-shell">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-zinc-400">Workspace</p>
-            <h1 className="text-2xl font-semibold text-zinc-900">Tasks</h1>
-            <p className="text-sm text-zinc-500">Plan next steps, follow-ups, and reminders.</p>
+            <h1 className="text-2xl font-semibold text-zinc-900">Tâches</h1>
+            <p className="text-sm text-zinc-500">Planifiez les prochaines actions et relances.</p>
           </div>
           <button
             type="button"
@@ -385,57 +385,63 @@ export function TasksDashboard() {
             className="ui-btn ui-btn-primary"
           >
             <Plus size={14} className="mr-2" />
-            New task
+            Nouvelle tâche
           </button>
         </div>
 
-        <div className="mb-4 inline-flex rounded-xl border border-zinc-200 bg-white p-1 shadow-sm">
+        <div className="mb-4 inline-flex rounded-md border border-zinc-200 bg-white p-1 shadow-sm">
           <button
             className={cn(
-              "ui-focus rounded-lg px-3 py-1.5 text-sm font-medium transition",
+              "ui-focus rounded-md px-3 py-1.5 text-sm font-medium transition",
               viewMode === "list" ? "bg-zinc-950 text-white" : "text-zinc-600 hover:bg-zinc-100",
             )}
             onClick={() => setViewMode("list")}
           >
-            List
+            Liste
           </button>
           <button
             className={cn(
-              "ui-focus rounded-lg px-3 py-1.5 text-sm font-medium transition",
+              "ui-focus rounded-md px-3 py-1.5 text-sm font-medium transition",
               viewMode === "calendar" ? "bg-zinc-950 text-white" : "text-zinc-600 hover:bg-zinc-100",
             )}
             onClick={() => setViewMode("calendar")}
           >
-            Calendar
+            Calendrier
           </button>
         </div>
 
         {tasksQuery.isLoading ? (
           <div className="ui-state-box ui-state-loading p-10 text-center text-sm">
-            Chargement des taches...
+            <div className="ui-state-stack">
+              <p className="ui-state-title">Chargement des tâches...</p>
+              <p className="ui-state-text">Synchronisation de votre planning.</p>
+            </div>
           </div>
         ) : null}
 
         {tasksQuery.isError ? (
           <div className="ui-state-box ui-state-error text-sm">
-            Impossible de charger les taches.
-            <div className="mt-1 text-xs text-rose-600/90">{taskErrorMessage}</div>
+            <p className="ui-state-title">Impossible de charger les tâches.</p>
+            <p className="ui-state-text text-rose-600/90">{taskErrorMessage}</p>
           </div>
         ) : null}
 
         {!tasksQuery.isLoading && !tasksQuery.isError && viewMode === "list" ? (
           <div className="space-y-6">
             {([
-              ["Overdue", groupedTasks.overdue],
-              ["Today", groupedTasks.today],
-              ["Tomorrow", groupedTasks.tomorrow],
+              ["En retard", groupedTasks.overdue],
+              ["Aujourd'hui", groupedTasks.today],
+              ["Demain", groupedTasks.tomorrow],
             ] as const).map(([title, tasks]) => (
               <section key={title}>
                 <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">{title}</h2>
                 <div className="space-y-2">
                   {tasks.length === 0 ? (
                     <div className="ui-state-box ui-state-empty border-dashed px-4 py-5 text-sm">
-                      Aucune tache
+                      <div className="ui-state-stack">
+                        <p className="ui-state-title">Aucune tâche</p>
+                        <p className="ui-state-text">Ajoutez une action pour cette section.</p>
+                      </div>
                     </div>
                   ) : (
                     tasks.map((task) => (
@@ -456,12 +462,12 @@ export function TasksDashboard() {
         ) : null}
 
         {!tasksQuery.isLoading && !tasksQuery.isError && viewMode === "calendar" ? (
-          <div className="rounded-2xl border border-zinc-200 bg-white p-4">
+          <div className="rounded-md border border-zinc-200 bg-white p-4">
             <div className="mb-4 flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => setMonthCursor((previous) => subMonths(previous, 1))}
-                className="rounded-lg border border-zinc-200 p-2 text-zinc-600 transition hover:bg-zinc-50"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 transition hover:bg-zinc-50"
               >
                 <ChevronLeft size={16} />
               </button>
@@ -472,44 +478,48 @@ export function TasksDashboard() {
               <button
                 type="button"
                 onClick={() => setMonthCursor((previous) => addMonths(previous, 1))}
-                className="rounded-lg border border-zinc-200 p-2 text-zinc-600 transition hover:bg-zinc-50"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-200 text-zinc-600 transition hover:bg-zinc-50"
               >
                 <ChevronRight size={16} />
               </button>
             </div>
 
             <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-              <div className="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-medium uppercase tracking-wide text-zinc-400">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-                  <p key={day}>{day}</p>
-                ))}
-              </div>
+              <div className="overflow-x-auto pb-1">
+                <div className="min-w-[640px]">
+                  <div className="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((day) => (
+                      <p key={day}>{day}</p>
+                    ))}
+                  </div>
 
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-7">
-                {calendarDays.map((day) => {
-                  const dayTasks = (tasksQuery.data ?? []).filter((task: TaskWithLead) => {
-                    if (!task.due_at || task.status === "done") return false;
-                    const dueDate = parseISO(task.due_at);
-                    if (Number.isNaN(dueDate.getTime())) return false;
-                    return isWithinInterval(dueDate, {
-                      start: startOfDay(day),
-                      end: addDays(startOfDay(day), 1),
-                    });
-                  });
+                  <div className="grid grid-cols-7 gap-2">
+                    {calendarDays.map((day) => {
+                      const dayTasks = (tasksQuery.data ?? []).filter((task: TaskWithLead) => {
+                        if (!task.due_at || task.status === "done") return false;
+                        const dueDate = parseISO(task.due_at);
+                        if (Number.isNaN(dueDate.getTime())) return false;
+                        return isWithinInterval(dueDate, {
+                          start: startOfDay(day),
+                          end: addDays(startOfDay(day), 1),
+                        });
+                      });
 
-                  return (
-                    <DroppableDay
-                      key={day.toISOString()}
-                      day={day}
-                      tasks={dayTasks}
-                      onOpenTask={onOpenTask}
-                      onOpenDay={(selectedDay, selectedDayTasks) =>
-                        setDayPreview({ day: selectedDay, tasks: selectedDayTasks })
-                      }
-                      isCurrentMonth={day.getMonth() === monthCursor.getMonth()}
-                    />
-                  );
-                })}
+                      return (
+                        <DroppableDay
+                          key={day.toISOString()}
+                          day={day}
+                          tasks={dayTasks}
+                          onOpenTask={onOpenTask}
+                          onOpenDay={(selectedDay, selectedDayTasks) =>
+                            setDayPreview({ day: selectedDay, tasks: selectedDayTasks })
+                          }
+                          isCurrentMonth={day.getMonth() === monthCursor.getMonth()}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </DndContext>
           </div>
@@ -530,11 +540,11 @@ export function TasksDashboard() {
       <SlideOver
         isOpen={Boolean(dayPreview)}
         onClose={() => setDayPreview(null)}
-        title={dayPreview ? `Tasks - ${format(dayPreview.day, "dd MMM yyyy")}` : "Tasks"}
+        title={dayPreview ? `Tâches - ${format(dayPreview.day, "dd MMM yyyy")}` : "Tâches"}
       >
         <div className="space-y-2">
           {!dayPreview || dayPreview.tasks.length === 0 ? (
-            <p className="text-sm text-zinc-500">Aucune tache pour ce jour.</p>
+            <p className="text-sm text-zinc-500">Aucune tâche pour ce jour.</p>
           ) : (
             dayPreview.tasks.map((task) => (
               <button
@@ -544,13 +554,13 @@ export function TasksDashboard() {
                   setDayPreview(null);
                   onOpenTask(task);
                 }}
-                className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-left transition hover:border-zinc-300 hover:bg-zinc-50"
+                className="w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-left transition hover:border-zinc-300 hover:bg-zinc-50"
               >
                 <div className="flex items-center gap-2">
                   <span className={cn("h-1.5 w-1.5 rounded-full", priorityDotClass[task.priority])} />
                   <p className="text-sm font-medium text-zinc-900">{task.title}</p>
                 </div>
-                <p className="mt-0.5 text-xs text-zinc-500">{task.leads?.name ?? "No lead linked"}</p>
+                <p className="mt-0.5 text-xs text-zinc-500">{task.leads?.name ?? "Aucun lead lié"}</p>
               </button>
             ))
           )}

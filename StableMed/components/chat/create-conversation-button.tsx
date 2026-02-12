@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState, useTransition } from "react";
+import { FormEvent, useEffect, useState, useTransition } from "react";
 import { Loader2, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -63,6 +63,15 @@ export function CreateConversationButton() {
     });
   }
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
+
   return (
     <>
       <button
@@ -74,7 +83,7 @@ export function CreateConversationButton() {
             setError(loadError instanceof Error ? loadError.message : "Chargement des utilisateurs impossible");
           });
         }}
-        className="inline-flex h-8 items-center justify-center gap-1 rounded-md border border-zinc-200 bg-white px-2 text-xs text-zinc-600 transition hover:border-zinc-300 hover:text-zinc-900"
+        className="ui-focus inline-flex h-9 items-center justify-center gap-1 rounded-md border border-zinc-200 bg-white px-2.5 text-[13px] font-medium text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-100 hover:text-zinc-900"
       >
         <Plus className="h-3.5 w-3.5" />
         Nouveau
@@ -88,10 +97,10 @@ export function CreateConversationButton() {
           <form
             onSubmit={onSubmit}
             onClick={(event) => event.stopPropagation()}
-            className="w-full max-w-md space-y-2 rounded-xl border border-zinc-200 bg-white p-3 shadow-2xl"
+            className="max-h-[calc(100vh-2rem)] w-full max-w-md space-y-3 overflow-y-auto rounded-md border border-zinc-300 bg-white p-4 shadow-card"
           >
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-zinc-800">Nouvelle conversation</p>
+            <div className="flex items-center justify-between border-b border-zinc-200 pb-2">
+              <p className="text-sm font-semibold text-zinc-900">Nouvelle conversation</p>
               <button
                 type="button"
                 onClick={() => {
@@ -113,7 +122,7 @@ export function CreateConversationButton() {
               placeholder="Ex: Equipe vente"
               autoFocus
               disabled={isPending}
-              className="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-800 outline-none focus:border-zinc-500"
+              className="ui-input h-9 px-3"
             />
 
             <input
@@ -121,10 +130,10 @@ export function CreateConversationButton() {
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Ajouter des participants..."
               disabled={isPending}
-              className="h-9 w-full rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-800 outline-none focus:border-zinc-500"
+              className="ui-input h-9 px-3"
             />
 
-            <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-zinc-200 bg-zinc-50 p-2">
+            <div className="max-h-52 space-y-1 overflow-y-auto rounded-md border border-zinc-300 bg-zinc-50 p-2">
               {candidates
                 .filter((candidate) => {
                   const keyword = search.trim().toLowerCase();
@@ -139,7 +148,7 @@ export function CreateConversationButton() {
                   return (
                     <label
                       key={candidate.user_id}
-                      className="flex cursor-pointer items-center justify-between rounded bg-white px-2 py-1.5 text-xs hover:bg-zinc-100"
+                      className="flex cursor-pointer items-center justify-between rounded-md border border-transparent bg-white px-2 py-1.5 text-xs hover:border-zinc-200 hover:bg-zinc-100"
                     >
                       <span className="truncate text-zinc-700">{labelForCandidate(candidate)}</span>
                       <input
@@ -154,7 +163,7 @@ export function CreateConversationButton() {
                             return previous.filter((id) => id !== candidate.user_id);
                           });
                         }}
-                        className="h-4 w-4"
+                        className="h-4 w-4 accent-zinc-700"
                       />
                     </label>
                   );

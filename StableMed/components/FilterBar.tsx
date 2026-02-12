@@ -2,8 +2,9 @@ import React from 'react';
 import { Filter, Users, User } from 'lucide-react';
 import { useData } from '../contexts/DataContext';
 import { useAuth } from '../contexts/AuthContext';
+import { CustomSelect } from './Common';
 
-export const FilterBar: React.FC = () => {
+export const FilterBar: React.FC<{ className?: string }> = ({ className = '' }) => {
   const { profile } = useAuth();
   const { 
       teams, 
@@ -18,49 +19,50 @@ export const FilterBar: React.FC = () => {
   // If Commercial, don't show filters (they only see their data)
   if (profile?.role === 'commercial') return null;
 
+  const teamOptions = [
+    { value: 'all', label: 'Toutes les equipes' },
+    ...teams.map((team) => ({ value: team.id, label: team.name })),
+  ];
+
+  const userOptions = [
+    { value: 'all', label: 'Tous les commerciaux' },
+    ...filteredUsers.map((currentUser) => ({
+      value: currentUser.id,
+      label: currentUser.full_name || currentUser.email || 'Utilisateur',
+    })),
+  ];
+
   return (
-    <div className="mb-6 flex w-fit flex-wrap items-center gap-3 rounded-xl border border-border bg-white px-3 py-2.5 shadow-sm">
-      <div className="flex items-center gap-2 border-r border-border pr-3 text-sm font-medium text-secondary">
+    <div className={`flex w-full flex-wrap items-start gap-2 rounded-md border border-border bg-white px-3 py-2 shadow-sm sm:items-center ${className}`}>
+      <div className="flex h-9 items-center gap-2 pr-2 text-sm font-medium text-secondary sm:border-r sm:border-border sm:pr-3">
         <Filter size={16} />
-        <span>Vue :</span>
+        <span>Vue</span>
       </div>
 
       {/* Team Filter - Only for Admin */}
       {profile?.role === 'admin' && (
-        <div className="relative group">
-            <div className="flex items-center gap-2">
-                <Users size={14} className="text-gray-400" />
-                <select 
-                    value={selectedTeamId} 
-                    onChange={(e) => setTeamFilter(e.target.value)}
-                    className="ui-focus cursor-pointer rounded-md border border-transparent bg-transparent px-1 py-1 text-sm font-medium text-primary min-w-[120px]"
-                    disabled={loadingFilters}
-                >
-                    <option value="all">Toutes les équipes</option>
-                    {teams.map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                </select>
-            </div>
+        <div className="w-full sm:min-w-[210px] sm:w-auto">
+          <CustomSelect
+            value={selectedTeamId}
+            onChange={setTeamFilter}
+            options={teamOptions}
+            icon={Users}
+            minWidth="210px"
+            className={loadingFilters ? 'pointer-events-none opacity-60' : ''}
+          />
         </div>
       )}
 
       {/* User Filter - For Admin & Manager */}
-      <div className="relative group border-l border-border pl-3">
-        <div className="flex items-center gap-2">
-             <User size={14} className="text-gray-400" />
-             <select 
-                value={selectedUserId} 
-                onChange={(e) => setUserFilter(e.target.value)}
-                className="ui-focus cursor-pointer rounded-md border border-transparent bg-transparent px-1 py-1 text-sm font-medium text-primary min-w-[150px]"
-                disabled={loadingFilters}
-            >
-                <option value="all">Tous les commerciaux</option>
-                {filteredUsers.map(u => (
-                    <option key={u.id} value={u.id}>{u.full_name || u.email}</option>
-                ))}
-            </select>
-        </div>
+      <div className="w-full pl-0 sm:w-auto sm:border-l sm:border-border sm:pl-3">
+        <CustomSelect
+          value={selectedUserId}
+          onChange={setUserFilter}
+          options={userOptions}
+          icon={User}
+          minWidth="240px"
+          className={loadingFilters ? 'pointer-events-none opacity-60' : ''}
+        />
       </div>
     </div>
   );

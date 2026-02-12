@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Badge, SectionTitle, Modal, SlideOver, Avatar } from '@/components/Common';
+import { SectionTitle, Modal, SlideOver, Avatar } from '@/components/Common';
 import { FilterBar } from '@/components/FilterBar';
 import { Deal, Training } from '@/types';
 import { MoreHorizontal, Plus, Loader2, Trash2, Save, Calendar, DollarSign, TrendingUp, CheckCircle, Search, X, Check, Award, PartyPopper, AlertCircle, RefreshCw } from 'lucide-react';
@@ -42,39 +42,39 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
   onSelectDeal
 }) => (
   <div 
-    className="flex-1 min-w-[280px] flex flex-col h-full bg-gray-50/30 rounded-lg p-2 transition-colors hover:bg-gray-50/80"
+    className="flex h-full min-w-[280px] flex-1 flex-col rounded-md border border-zinc-200 bg-zinc-50/40 p-2.5 motion-fade-up"
     onDrop={(e) => onDrop(e, stage)}
     onDragOver={onDragOver}
   >
-    <div className="flex justify-between items-baseline mb-4 px-2 pt-2">
-      <h3 className="text-sm font-bold text-secondary uppercase tracking-wider flex items-center gap-2">
-          {stage === 'won' && <Award size={14} className="text-emerald-500" />}
+    <div className="mb-3 flex items-center justify-between px-1 pt-1.5">
+      <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
+          {stage === 'won' && <Award size={13} className="text-zinc-500" />}
           {title} 
-          <span className="bg-gray-100 text-gray-500 text-[10px] px-1.5 py-0.5 rounded-full ml-1">{deals.length}</span>
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-zinc-200 bg-white px-1.5 text-[10px] font-semibold text-zinc-500">{deals.length}</span>
       </h3>
-      <span className="text-xs text-gray-400 font-mono font-medium">{totalValue.toLocaleString()} €</span>
+      <span className="text-[11px] font-medium tabular-nums text-zinc-500">{totalValue.toLocaleString()} €</span>
     </div>
-    <div className="space-y-3 flex-1 overflow-y-auto px-1">
+    <div className="flex-1 space-y-2.5 overflow-y-auto px-0.5">
       {deals.map((deal, idx) => (
         <div 
           key={deal.id} 
           draggable
           onDragStart={(e) => onDragStart(e, deal.id)}
           onClick={() => onSelectDeal(deal)}
-          className="group bg-surface border border-border p-4 rounded-lg shadow-sm hover:shadow-float hover:border-primary/20 transition-all duration-300 cursor-grab active:cursor-grabbing relative transform hover:-translate-y-1 micro-interaction animate-enter"
+          className="group relative cursor-grab rounded-md border border-zinc-200 bg-white p-3.5 shadow-subtle transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-card active:cursor-grabbing micro-interaction motion-fade-up"
           style={{ animationDelay: `${idx * 50}ms` }}
         >
-          <div className="flex justify-between items-start mb-2">
+          <div className="mb-2 flex items-start justify-between">
             <div className="flex flex-col gap-1">
                 {deal.trainings && deal.trainings.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
                         {deal.trainings.slice(0, 1).map((t, idx) => (
-                            <span key={idx} className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded border border-gray-200 truncate max-w-[150px]">
+                            <span key={idx} className="max-w-[150px] truncate rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-600">
                                 {t.title}
                             </span>
                         ))}
                         {deal.trainings.length > 1 && (
-                            <span className="text-[10px] px-1.5 py-0.5 bg-gray-50 text-gray-400 rounded border border-gray-100">
+                            <span className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] text-zinc-500">
                                 +{deal.trainings.length - 1}
                             </span>
                         )}
@@ -82,9 +82,9 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
                 ) : (
                     // Fallback for Legacy Data (String)
                     deal.training ? (
-                         <span className="text-[10px] px-1.5 py-0.5 bg-gray-50 text-gray-500 rounded border border-gray-200 truncate max-w-[150px] inline-block">{deal.training}</span>
+                         <span className="inline-block max-w-[150px] truncate rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-500">{deal.training}</span>
                     ) : (
-                         <span className="text-xs font-medium text-gray-400 italic">Sans formation</span>
+                         <span className="text-[11px] text-zinc-500 italic">Sans formation</span>
                     )
                 )}
             </div>
@@ -99,11 +99,12 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
             )}
           </div>
           
-          <h4 className="font-semibold text-primary mb-3 text-sm">{deal.leadName}</h4>
+          <h4 className="mb-0.5 truncate text-sm font-semibold leading-5 text-primary">{deal.leadName}</h4>
+          <p className="truncate text-[12px] text-zinc-500">{deal.assignee?.full_name || "Non assigné"}</p>
           
-          <div className="flex justify-between items-center mt-3 pt-3 border-t border-gray-50">
-            <Badge variant={deal.probability > 75 ? 'success' : 'neutral'}>{deal.amount} €</Badge>
-            <div className="text-xs text-gray-400 flex items-center gap-1 font-mono">
+          <div className="mt-2.5 flex items-center justify-between border-t border-zinc-100 pt-2.5">
+            <div className="text-sm font-semibold tabular-nums text-zinc-900">{deal.amount.toLocaleString()} €</div>
+            <div className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] font-medium text-zinc-500">
                 {deal.probability}%
             </div>
           </div>
@@ -111,7 +112,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
       ))}
       
       {deals.length === 0 && (
-        <div className="h-24 border border-dashed border-border rounded-lg flex items-center justify-center text-xs text-gray-300 bg-white/50">
+        <div className="motion-fade-up flex h-20 items-center justify-center rounded-md border border-dashed border-zinc-300 bg-white/65 text-[11px] font-medium text-zinc-500">
           Glisser ici
         </div>
       )}
@@ -119,7 +120,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
       {stage === 'new' && (
         <button 
             onClick={onOpenCreate}
-            className="w-full py-2 text-sm text-gray-400 border border-dashed border-gray-200 rounded-md hover:border-gray-300 hover:text-gray-600 transition-colors flex items-center justify-center gap-2 micro-interaction"
+            className="micro-interaction motion-soft-hover motion-soft-press flex h-9 w-full items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-white/70 text-[13px] font-medium text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-700"
         >
             <Plus size={14} /> Nouvelle
         </button>
@@ -572,7 +573,7 @@ const Pipeline: React.FC = () => {
 
   const renderMultiSelect = () => (
      <div className="relative" ref={dropdownRef}>
-        <label className="block text-sm font-medium text-secondary mb-1">Formations associées</label>
+        <label className="ui-field-label">Formations associées</label>
         <div className="flex flex-wrap gap-2 mb-2">
             {selectedTrainingIds.map(id => {
                 let t = trainings.find(tr => tr.id === id);
@@ -581,15 +582,15 @@ const Pipeline: React.FC = () => {
             })}
         </div>
         <div className="relative">
-            <input type="text" placeholder="Rechercher une formation..." value={trainingSearch} onChange={(e) => { setTrainingSearch(e.target.value); setShowTrainingDropdown(true); }} onFocus={() => setShowTrainingDropdown(true)} className="w-full px-3 py-2 border border-border rounded-md text-sm outline-none bg-white pr-8" />
+            <input type="text" placeholder="Rechercher une formation..." value={trainingSearch} onChange={(e) => { setTrainingSearch(e.target.value); setShowTrainingDropdown(true); }} onFocus={() => setShowTrainingDropdown(true)} className="ui-input pr-8" />
             <div className="absolute right-2 top-2.5 text-gray-400 pointer-events-none"><Search size={14} /></div>
         </div>
         {showTrainingDropdown && (
-            <div className="absolute z-10 w-full mt-1 bg-white border border-border rounded-md shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-card">
                 {trainings.filter(t => t.title.toLowerCase().includes(trainingSearch.toLowerCase())).map(t => (
-                    <div key={t.id} onClick={() => { toggleTrainingSelection(t.id); setTrainingSearch(''); }} className={`px-3 py-2 text-sm cursor-pointer flex items-center justify-between hover:bg-gray-50 ${selectedTrainingIds.includes(t.id) ? 'bg-blue-50' : ''}`}>
+                    <div key={t.id} onClick={() => { toggleTrainingSelection(t.id); setTrainingSearch(''); }} className={`px-3 py-2 text-sm cursor-pointer flex items-center justify-between hover:bg-gray-50 ${selectedTrainingIds.includes(t.id) ? 'bg-zinc-100' : ''}`}>
                         <div><p className="font-medium text-primary">{t.title}</p><p className="text-xs text-secondary">{t.price} €</p></div>
-                        {selectedTrainingIds.includes(t.id) && <Check size={14} className="text-blue-600" />}
+                        {selectedTrainingIds.includes(t.id) && <Check size={14} className="text-zinc-700" />}
                     </div>
                 ))}
             </div>
@@ -599,10 +600,11 @@ const Pipeline: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="ui-state-box ui-state-loading flex h-full items-center justify-center p-10 text-sm">
-        <div className="inline-flex items-center gap-2">
+      <div className="ui-state-box ui-state-loading motion-fade-up flex h-full items-center justify-center p-10 text-sm">
+        <div className="inline-flex flex-col items-center gap-1 text-center">
           <Loader2 className="animate-spin text-gray-400" />
-          Chargement du pipeline...
+          <p className="ui-state-title">Chargement du pipeline...</p>
+          <p className="ui-state-text">Préparation des opportunités en cours.</p>
         </div>
       </div>
     );
@@ -610,7 +612,7 @@ const Pipeline: React.FC = () => {
 
   return (
     <div className="ui-page h-full flex flex-col">
-      <div className="flex justify-between items-center mb-6">
+      <div className="mb-6 flex items-center justify-between motion-fade-up">
          <SectionTitle title="Pipeline" subtitle="Gérez vos opportunités en cours" />
          <div className="flex items-center gap-4">
             <button 
@@ -621,14 +623,14 @@ const Pipeline: React.FC = () => {
                     setIsWonModalOpen(true);
                     setDealToWin(null); 
                 }}
-                className="ui-btn ui-btn-secondary micro-interaction hidden sm:flex"
+                className="ui-btn ui-btn-secondary micro-interaction motion-soft-hover motion-soft-press hidden sm:flex"
             >
-                <Award size={16} className="text-emerald-500" /> Ajouter une vente
+                <Award size={16} className="text-zinc-500" /> Ajouter une vente
             </button>
 
             <button 
                 onClick={() => setIsModalOpen(true)}
-                className="ui-btn ui-btn-primary micro-interaction"
+                className="ui-btn ui-btn-primary micro-interaction motion-soft-hover motion-soft-press"
             >
                 <Plus size={16} /> <span className="hidden sm:inline">Nouvelle opportunité</span>
             </button>
@@ -638,32 +640,32 @@ const Pipeline: React.FC = () => {
       <FilterBar />
       
       {errorState ? (
-          <div className="ui-state-box ui-state-error flex h-64 flex-col items-center justify-center p-8 text-center">
+          <div className="ui-state-box ui-state-error motion-fade-up flex h-64 flex-col items-center justify-center p-8 text-center">
               <AlertCircle className="text-red-400 mb-3" size={32} />
-              <h3 className="text-primary font-medium mb-1">Erreur de chargement</h3>
-              <p className="text-sm text-secondary mb-4">La structure de la base de données ne correspond pas à la version actuelle de l'application.</p>
+              <p className="ui-state-title">Erreur de chargement</p>
+              <p className="ui-state-text mb-4">La structure de la base de données ne correspond pas à la version actuelle de l'application.</p>
           </div>
       ) : (
         <>
             {compatibilityMode && (
-                <div className="mb-4 p-3 bg-blue-50 text-blue-700 text-xs rounded border border-blue-100 flex items-start justify-between gap-2">
+                <div className="mb-4 flex items-start justify-between gap-2 rounded border border-zinc-200 bg-zinc-50 p-3 text-xs text-zinc-700 motion-fade-up">
                     <div className="flex gap-2">
-                        <AlertCircle size={14} className="shrink-0 mt-0.5" /> 
+                        <AlertCircle size={14} className="shrink-0 mt-0.5 text-zinc-500" /> 
                         <div>
                             <span className="font-semibold block mb-0.5">Mode compatibilité activé</span>
                             <span className="opacity-90">La base de données n'est pas synchronisée avec la V2.</span>
-                            {compatibilityError && <div className="mt-1 font-mono text-[10px] bg-blue-100/50 p-1 rounded text-blue-800">{compatibilityError}</div>}
+                            {compatibilityError && <div className="mt-1 font-mono text-[10px] bg-zinc-100 p-1 rounded text-zinc-600">{compatibilityError}</div>}
                         </div>
                     </div>
                     <button 
                         onClick={() => fetchDeals()}
-                        className="flex items-center gap-1.5 px-3 py-1 bg-white border border-blue-200 text-blue-700 rounded text-xs font-medium hover:bg-blue-50 transition-colors shadow-sm whitespace-nowrap"
+                        className="flex items-center gap-1.5 whitespace-nowrap rounded border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 motion-soft-hover motion-soft-press"
                     >
                         <RefreshCw size={12} /> Réessayer
                     </button>
                 </div>
             )}
-            <div className="flex gap-6 overflow-x-auto pb-6 h-full">
+            <div className="flex h-full gap-6 overflow-x-auto pb-6">
                 {(['new', 'negotiation', 'closing', 'won'] as const).map(stage => (
                     <PipelineColumn 
                         key={stage}
@@ -682,20 +684,19 @@ const Pipeline: React.FC = () => {
         </>
       )}
 
-      {/* CREATE MODAL */}
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-        <div className="bg-surface p-6 rounded-lg w-full max-w-md overflow-visible">
-             <h3 className="text-lg font-medium text-primary mb-4">Nouvelle Opportunité</h3>
+      {/* CREATE PANEL */}
+      <SlideOver isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nouvelle Opportunité" maxWidth="lg">
+             <p className="mb-5 text-sm text-secondary">Créez une opportunité en quelques champs clés.</p>
              <div className="space-y-4">
                 <div>
-                    <label className="block text-sm font-medium text-secondary mb-1">Nom du prospect / Deal</label>
-                    <input type="text" value={newDealTitle} onChange={(e) => setNewDealTitle(e.target.value)} className="w-full px-3 py-2 border border-border rounded-md text-sm outline-none focus:ring-1 focus:ring-primary" placeholder="Ex: Dr. House" />
+                    <label className="ui-field-label">Nom du prospect / Deal</label>
+                    <input type="text" value={newDealTitle} onChange={(e) => setNewDealTitle(e.target.value)} className="ui-input" placeholder="Ex: Dr. House" />
                 </div>
                 
                 {profile?.role !== 'commercial' && !compatibilityMode && (
                     <div>
-                        <label className="block text-sm font-medium text-secondary mb-1">Attribuer à</label>
-                        <select value={newDealOwner} onChange={(e) => setNewDealOwner(e.target.value)} className="w-full px-3 py-2 border border-border rounded-md text-sm bg-white">
+                        <label className="ui-field-label">Attribuer à</label>
+                        <select value={newDealOwner} onChange={(e) => setNewDealOwner(e.target.value)} className="ui-input">
                             <option value="">Moi-même</option>
                             {users.map(u => (<option key={u.id} value={u.id}>{u.full_name || u.email}</option>))}
                         </select>
@@ -704,20 +705,19 @@ const Pipeline: React.FC = () => {
 
                 {renderMultiSelect()}
                 <div>
-                    <label className="block text-sm font-medium text-secondary mb-1">Montant estimé (€)</label>
-                    <input type="number" value={newDealAmount} onChange={(e) => setNewDealAmount(Number(e.target.value))} className="w-full px-3 py-2 border border-border rounded-md text-sm outline-none focus:ring-1 focus:ring-primary" />
+                    <label className="ui-field-label">Montant estimé (€)</label>
+                    <input type="number" value={newDealAmount} onChange={(e) => setNewDealAmount(Number(e.target.value))} className="ui-input" />
                 </div>
-                <div className="flex justify-end gap-3 mt-6">
-                    <button onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm text-secondary hover:bg-gray-50 rounded-md">Annuler</button>
-                    <button onClick={createDeal} disabled={!newDealTitle} className="px-4 py-2 bg-primary text-white text-sm rounded-md hover:bg-black disabled:opacity-50">Créer</button>
+                <div className="mt-6 flex justify-end gap-2 border-t border-zinc-200 pt-4">
+                    <button onClick={() => setIsModalOpen(false)} className="ui-btn ui-btn-secondary">Annuler</button>
+                    <button onClick={createDeal} disabled={!newDealTitle} className="ui-btn ui-btn-primary disabled:opacity-50">Créer</button>
                 </div>
              </div>
-        </div>
-      </Modal>
+      </SlideOver>
 
       {/* WON MODAL */}
       <Modal isOpen={isWonModalOpen} onClose={() => setIsWonModalOpen(false)}>
-          <div className="bg-white p-8 rounded-lg max-w-md w-full text-center">
+          <div className="w-full max-w-md rounded-md bg-white p-6 text-center">
                 <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
                     <PartyPopper className="text-emerald-600" size={32} />
                 </div>
@@ -728,23 +728,23 @@ const Pipeline: React.FC = () => {
 
                 {!dealToWin && (
                     <div className="mb-6 text-left space-y-3">
-                         <input type="text" placeholder="Nom du client" value={newDealTitle} onChange={(e) => setNewDealTitle(e.target.value)} className="w-full px-3 py-2 border border-border rounded-md text-sm" />
-                         <input type="number" placeholder="Montant (€)" value={newDealAmount} onChange={(e) => setNewDealAmount(Number(e.target.value))} className="w-full px-3 py-2 border border-border rounded-md text-sm" />
+                         <input type="text" placeholder="Nom du client" value={newDealTitle} onChange={(e) => setNewDealTitle(e.target.value)} className="ui-input" />
+                         <input type="number" placeholder="Montant (€)" value={newDealAmount} onChange={(e) => setNewDealAmount(Number(e.target.value))} className="ui-input" />
                     </div>
                 )}
                 
                 {dealToWin && (
-                    <div className="bg-gray-50 p-4 rounded-lg mb-6 border border-gray-100">
+                    <div className="mb-6 rounded-md border border-gray-100 bg-gray-50 p-4">
                         <div className="text-sm text-secondary">Montant final</div>
                         <div className="text-2xl font-bold text-primary">{dealToWin.amount.toLocaleString()} €</div>
                     </div>
                 )}
 
                 <div className="flex gap-3">
-                    <button onClick={() => setIsWonModalOpen(false)} className="flex-1 py-2.5 border border-gray-200 rounded-md text-sm font-medium hover:bg-gray-50">Annuler</button>
+                    <button onClick={() => setIsWonModalOpen(false)} className="ui-btn ui-btn-secondary flex-1">Annuler</button>
                     <button 
                         onClick={handleConfirmWin} 
-                        className="flex-1 py-2.5 bg-primary text-white rounded-md text-sm font-medium hover:bg-zinc-800 transition-all shadow-sm border border-transparent flex items-center justify-center gap-2"
+                        className="ui-btn ui-btn-primary flex-1"
                     >
                         <Check size={16} /> <span>Confirmer la vente</span>
                     </button>
@@ -754,7 +754,7 @@ const Pipeline: React.FC = () => {
 
       <SlideOver isOpen={!!selectedDeal} onClose={() => setSelectedDeal(null)} title="Détails Opportunité">
         {selectedDeal && (
-          <div className="space-y-8">
+          <div className="space-y-8 motion-fade-up">
             <div className="flex items-center gap-4">
                <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center border border-emerald-100"><CheckCircle size={24} /></div>
                <div className="flex-1">
@@ -785,14 +785,14 @@ const Pipeline: React.FC = () => {
             {renderMultiSelect()}
 
             <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 bg-gray-50 rounded-lg border border-border">
+                <div className="rounded-md border border-border bg-gray-50 p-4">
                     <div className="flex items-center gap-2 text-secondary mb-2"><DollarSign size={16} /><span className="text-xs font-medium uppercase">Montant</span></div>
                     <div className="flex items-center">
                         <input type="number" value={newDealAmount} onChange={(e) => setNewDealAmount(Number(e.target.value))} className="bg-transparent text-2xl font-medium text-primary w-full focus:outline-none" />
                         <span className="text-secondary ml-1">€</span>
                     </div>
                 </div>
-                <div className="p-4 bg-gray-50 rounded-lg border border-border">
+                <div className="rounded-md border border-border bg-gray-50 p-4">
                     <div className="flex items-center gap-2 text-secondary mb-2"><TrendingUp size={16} /><span className="text-xs font-medium uppercase">Probabilité</span></div>
                     <div className="flex items-center">
                         <input type="number" value={selectedDeal.probability} onChange={(e) => setSelectedDeal({...selectedDeal, probability: Number(e.target.value)})} className="bg-transparent text-2xl font-medium text-primary w-full focus:outline-none" max={100} min={0} />
@@ -802,7 +802,7 @@ const Pipeline: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-                <h4 className="text-sm font-medium text-primary uppercase tracking-wide">Étape du Pipeline</h4>
+                <h4 className="ui-section-title text-primary">Étape du Pipeline</h4>
                 <div className="grid grid-cols-2 gap-3">
                     {(['new', 'negotiation', 'closing', 'won'] as const).map(stageOption => (
                         <button

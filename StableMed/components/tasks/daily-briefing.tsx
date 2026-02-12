@@ -65,11 +65,20 @@ export function DailyBriefing({ userName }: { userName?: string | null }) {
     setOpen(false);
   };
 
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-zinc-900/40 p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-zinc-900/40 p-4 backdrop-blur-sm motion-page-enter">
+      <div className="w-full max-w-lg rounded-md border border-zinc-200 bg-white p-6 shadow-card motion-scale-in">
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm font-semibold text-zinc-900">
@@ -80,7 +89,7 @@ export function DailyBriefing({ userName }: { userName?: string | null }) {
           <button
             type="button"
             onClick={closeBriefing}
-            className="rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
+            className="rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 motion-soft-hover motion-soft-press"
             aria-label="Fermer le briefing"
           >
             <X size={16} />
@@ -89,7 +98,7 @@ export function DailyBriefing({ userName }: { userName?: string | null }) {
 
         <div className="mt-4 space-y-2">
           {tasks.map((task) => (
-            <div key={task.id} className="rounded-xl border border-zinc-200 px-3 py-2">
+            <div key={task.id} className="rounded-md border border-zinc-200 px-3 py-2">
               <div className="flex items-center gap-2">
                 <AlertTriangle size={14} className="text-amber-500" />
                 <p className="text-sm font-medium text-zinc-800">{task.title}</p>
@@ -101,9 +110,9 @@ export function DailyBriefing({ userName }: { userName?: string | null }) {
         <button
           type="button"
           onClick={closeBriefing}
-          className="mt-5 inline-flex rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800"
+          className="mt-5 inline-flex rounded-sm bg-zinc-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 motion-soft-hover motion-soft-press"
         >
-          Let&apos;s do this
+          Demarrer
         </button>
       </div>
     </div>

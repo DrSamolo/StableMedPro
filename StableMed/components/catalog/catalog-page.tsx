@@ -412,7 +412,7 @@ const Catalog: React.FC = () => {
             {(selectedTarget !== 'all' || selectedType !== 'all' || selectedOrg !== 'all') && (
                 <button 
                     onClick={() => { setSelectedTarget('all'); setSelectedType('all'); setSelectedOrg('all'); }}
-                    className="text-xs text-secondary hover:text-rose-500 font-medium px-2 py-1 transition-colors ml-2"
+                    className="ui-btn ui-btn-ghost h-9 px-3 py-0 text-xs ml-1"
                 >
                     Effacer
                 </button>
@@ -430,24 +430,27 @@ const Catalog: React.FC = () => {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Rechercher..." 
-                    className="w-full bg-white border border-gray-200 text-primary text-sm rounded-lg py-2 pl-9 pr-4 outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-100 transition-all shadow-sm placeholder-gray-400 hover:border-gray-300"
+                    className="h-10 w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 pl-10 pr-4 text-sm text-zinc-900 outline-none transition focus:border-zinc-300 focus:bg-white focus-visible:shadow-[0_0_0_3px_rgba(24,24,27,0.08)]"
                 />
             </div>
        </div>
 
        {/* Catalog Grid */}
        {loading ? (
-           <div className="ui-state-box ui-state-loading flex justify-center py-20 text-sm">
-             <div className="inline-flex items-center gap-2">
+           <div className="ui-state-box ui-state-loading flex justify-center py-20">
+             <div className="ui-state-stack">
                <Loader2 className="animate-spin text-gray-400" />
-               Chargement du catalogue...
+               <p className="ui-state-title">Chargement du catalogue...</p>
+               <p className="ui-state-text">Préparation des formations disponibles.</p>
              </div>
            </div>
        ) : filteredTrainings.length === 0 ? (
            <div className="ui-state-box ui-state-empty flex flex-col items-center justify-center border-dashed py-24">
                <Search size={32} className="text-gray-300 mb-3" />
-               <p className="text-secondary font-medium mb-1">Aucun résultat trouvé.</p>
-               <p className="text-xs text-gray-400">Essayez de modifier votre recherche ou vos filtres.</p>
+               <div className="ui-state-stack">
+                 <p className="ui-state-title">Aucun résultat trouvé</p>
+                 <p className="ui-state-text">Essayez de modifier votre recherche ou vos filtres.</p>
+               </div>
                {canManageCatalog && trainings.length === 0 && (
                    <button onClick={() => setIsModalOpen(true)} className="mt-4 text-primary text-sm font-medium hover:underline">Ajouter une première formation</button>
                )}
@@ -458,7 +461,7 @@ const Catalog: React.FC = () => {
                     <div 
                         key={training.id} 
                         onClick={() => setSelectedTraining(training)}
-                        className="group bg-surface border border-border rounded-xl shadow-sm hover:shadow-lg hover:border-gray-300 transition-all duration-300 cursor-pointer flex flex-col h-full overflow-hidden relative micro-interaction animate-enter"
+                        className="group bg-surface border border-border rounded-md shadow-sm hover:shadow-card hover:border-gray-300 transition-all duration-300 cursor-pointer flex flex-col h-full overflow-hidden relative micro-interaction animate-enter"
                         style={{ animationDelay: `${idx * 50}ms` }}
                     >
                         <div className="h-44 bg-gray-100 relative overflow-hidden group">
@@ -525,7 +528,7 @@ const Catalog: React.FC = () => {
 
        {/* DELETE CONFIRMATION MODAL - MONOCHROME */}
        <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)}>
-           <div className="bg-white p-6 rounded-xl max-w-sm w-full">
+           <div className="bg-white p-6 rounded-md max-w-sm w-full">
                <div className="flex flex-col items-center text-center">
                    {/* Monochrome Icon Container */}
                    <div className="w-12 h-12 bg-gray-50 text-primary rounded-full flex items-center justify-center mb-4 border border-gray-100">
@@ -541,14 +544,14 @@ const Catalog: React.FC = () => {
                    <div className="flex gap-3 w-full">
                        <button 
                            onClick={() => setIsDeleteModalOpen(false)}
-                           className="flex-1 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                           className="ui-btn ui-btn-secondary flex-1"
                        >
                            Annuler
                        </button>
                        {/* Black Primary Button */}
                        <button 
                            onClick={confirmDelete}
-                           className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-black transition-colors text-sm font-medium shadow-sm"
+                           className="ui-btn ui-btn-primary flex-1"
                        >
                            Supprimer
                        </button>
@@ -573,7 +576,7 @@ const Catalog: React.FC = () => {
                   ) : null}
                   
                   {/* Section: Header Image & Title */}
-                  <div className="relative h-48 rounded-xl overflow-hidden mb-6 shadow-sm border border-border">
+                  <div className="relative h-48 rounded-md overflow-hidden mb-6 shadow-sm border border-border">
                       {selectedTraining.image && <img src={selectedTraining.image} alt="Cover" className="w-full h-full object-cover" />}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent flex flex-col justify-end p-6">
                           <div className="mb-3">
@@ -673,19 +676,18 @@ const Catalog: React.FC = () => {
 
        {/* Create Modal - Expanded for new fields */}
        {canManageCatalog && (
-       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}>
-            <div className="bg-surface p-6 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-                <h3 className="text-lg font-semibold text-primary mb-6">Nouvelle Formation</h3>
+       <SlideOver isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nouvelle Formation" maxWidth="xl">
+                <p className="mb-5 text-sm text-secondary">Ajoutez une fiche formation structurée et lisible.</p>
                 
-                <div className="space-y-6">
+                <div className="space-y-5">
                     {/* Block 1: Identification */}
-                    <div className="space-y-3">
-                        <label className="text-xs font-bold text-secondary uppercase tracking-wider">Identification</label>
+                    <div className="space-y-3 rounded-md border border-zinc-200 bg-zinc-50/60 p-3">
+                        <label className="text-xs font-semibold uppercase tracking-[0.06em] text-zinc-500">Identification</label>
                         <input 
                             type="text" 
                             value={newTraining.title}
                             onChange={(e) => setNewTraining({...newTraining, title: e.target.value})}
-                            className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-1 focus:ring-primary outline-none"
+                            className="ui-input"
                             placeholder="Titre de la formation"
                         />
                         <div className="grid grid-cols-2 gap-3">
@@ -693,13 +695,13 @@ const Catalog: React.FC = () => {
                                 type="text" 
                                 value={newTraining.reference}
                                 onChange={(e) => setNewTraining({...newTraining, reference: e.target.value})}
-                                className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-1 focus:ring-primary outline-none"
+                                className="ui-input"
                                 placeholder="Référence (ex: REF-123)"
                             />
                             <select 
                                 value={newTraining.organization}
                                 onChange={(e) => setNewTraining({...newTraining, organization: e.target.value})}
-                                className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-1 focus:ring-primary outline-none bg-white"
+                                className="ui-input"
                             >
                                 <option value="WALTER">WALTER</option>
                                 <option value="Autre">Autre</option>
@@ -708,12 +710,12 @@ const Catalog: React.FC = () => {
                     </div>
 
                     {/* Block 2: Cible & Type */}
-                    <div className="space-y-3">
-                        <label className="text-xs font-bold text-secondary uppercase tracking-wider">Cible & Type</label>
+                    <div className="space-y-3 rounded-md border border-zinc-200 bg-zinc-50/60 p-3">
+                        <label className="text-xs font-semibold uppercase tracking-[0.06em] text-zinc-500">Cible & Type</label>
                          <select 
                             value={newTraining.target_audience}
                             onChange={(e) => setNewTraining({...newTraining, target_audience: e.target.value})}
-                            className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-1 focus:ring-primary outline-none bg-white"
+                            className="ui-input"
                         >
                             <option value="Infirmier diplômé d'État">Infirmier diplômé d'État (IDE)</option>
                             <option value="Médecin Généraliste">Médecin Généraliste</option>
@@ -724,7 +726,7 @@ const Catalog: React.FC = () => {
                             <select 
                                 value={newTraining.training_type}
                                 onChange={(e) => setNewTraining({...newTraining, training_type: e.target.value})}
-                                className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-1 focus:ring-primary outline-none bg-white"
+                                className="ui-input"
                             >
                                 <option value="Formation Continue">Formation Continue (FC)</option>
                                 <option value="EPP">EPP</option>
@@ -733,7 +735,7 @@ const Catalog: React.FC = () => {
                             <select 
                                 value={newTraining.format}
                                 onChange={(e) => setNewTraining({...newTraining, format: e.target.value as any})}
-                                className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-1 focus:ring-primary outline-none bg-white"
+                                className="ui-input"
                             >
                                 <option value="E-Learning">E-Learning</option>
                                 <option value="Présentiel">Présentiel</option>
@@ -744,34 +746,34 @@ const Catalog: React.FC = () => {
                     </div>
 
                     {/* Block 3: Finance & Durée */}
-                    <div className="space-y-3">
-                        <label className="text-xs font-bold text-secondary uppercase tracking-wider">Finance & Durée</label>
+                    <div className="space-y-3 rounded-md border border-zinc-200 bg-zinc-50/60 p-3">
+                        <label className="text-xs font-semibold uppercase tracking-[0.06em] text-zinc-500">Finance & Durée</label>
                         <div className="grid grid-cols-3 gap-3">
                             <div>
-                                <label className="text-[10px] text-secondary">Prix (€)</label>
+                                <label className="text-[11px] font-medium text-secondary">Prix (€)</label>
                                 <input 
                                     type="number" 
                                     value={newTraining.price}
                                     onChange={(e) => setNewTraining({...newTraining, price: Number(e.target.value)})}
-                                    className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-1 focus:ring-primary outline-none"
+                                    className="ui-input"
                                 />
                             </div>
                             <div>
-                                <label className="text-[10px] text-secondary">Indemnité (€)</label>
+                                <label className="text-[11px] font-medium text-secondary">Indemnité (€)</label>
                                 <input 
                                     type="number" 
                                     value={newTraining.compensation}
                                     onChange={(e) => setNewTraining({...newTraining, compensation: Number(e.target.value)})}
-                                    className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-1 focus:ring-primary outline-none"
+                                    className="ui-input"
                                 />
                             </div>
                              <div>
-                                <label className="text-[10px] text-secondary">Durée</label>
+                                <label className="text-[11px] font-medium text-secondary">Durée</label>
                                 <input 
                                     type="text" 
                                     value={newTraining.duration_total}
                                     onChange={(e) => setNewTraining({...newTraining, duration_total: e.target.value})}
-                                    className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-1 focus:ring-primary outline-none"
+                                    className="ui-input"
                                     placeholder="ex: 4h"
                                 />
                             </div>
@@ -779,53 +781,52 @@ const Catalog: React.FC = () => {
                     </div>
 
                     {/* Block 4: Intervenant */}
-                    <div className="space-y-3">
-                         <label className="text-xs font-bold text-secondary uppercase tracking-wider">Intervenant</label>
+                    <div className="space-y-3 rounded-md border border-zinc-200 bg-zinc-50/60 p-3">
+                         <label className="text-xs font-semibold uppercase tracking-[0.06em] text-zinc-500">Intervenant</label>
                          <input 
                             type="text" 
                             value={newTraining.instructor_name}
                             onChange={(e) => setNewTraining({...newTraining, instructor_name: e.target.value})}
-                            className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-1 focus:ring-primary outline-none"
+                            className="ui-input"
                             placeholder="Nom du Dr ou Formateur"
                         />
                         <textarea 
                             value={newTraining.instructor_bio}
                             onChange={(e) => setNewTraining({...newTraining, instructor_bio: e.target.value})}
-                            className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-1 focus:ring-primary outline-none h-16 resize-none"
+                            className="ui-input h-16 resize-none"
                             placeholder="Titre, poste, parcours..."
                         />
                     </div>
 
                     {/* Block 5: Programme */}
-                    <div className="space-y-3">
-                         <label className="text-xs font-bold text-secondary uppercase tracking-wider">Programme Détaillé</label>
+                    <div className="space-y-3 rounded-md border border-zinc-200 bg-zinc-50/60 p-3">
+                         <label className="text-xs font-semibold uppercase tracking-[0.06em] text-zinc-500">Programme Détaillé</label>
                          <textarea 
                             value={newTraining.program_details}
                             onChange={(e) => setNewTraining({...newTraining, program_details: e.target.value})}
-                            className="w-full px-3 py-2 border border-border rounded-md text-sm focus:ring-1 focus:ring-primary outline-none h-32"
+                            className="ui-input h-32"
                             placeholder="Copiez-collez le programme ici (Partie I, Chapitre A...)"
                         />
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-4 border-t border-border">
+                    <div className="flex justify-end gap-2 border-t border-zinc-200 pt-4">
                         <button 
                             onClick={() => setIsModalOpen(false)}
-                            className="px-4 py-2 text-sm text-secondary hover:bg-gray-50 rounded-md"
+                            className="ui-btn ui-btn-secondary"
                         >
                             Annuler
                         </button>
                         <button 
                             onClick={handleCreateTraining}
                             disabled={isSubmitting}
-                            className="px-4 py-2 bg-primary text-white text-sm rounded-md hover:bg-black flex items-center gap-2"
+                            className="ui-btn ui-btn-primary"
                         >
                             {isSubmitting && <Loader2 size={14} className="animate-spin" />}
                             Créer la fiche
                         </button>
                     </div>
                 </div>
-            </div>
-       </Modal>
+       </SlideOver>
        )}
     </div>
   );

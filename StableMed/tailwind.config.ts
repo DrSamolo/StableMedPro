@@ -11,20 +11,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        background: "#FAFAFA",
+        background: "#F8F8F9",
         surface: "#FFFFFF",
-        border: "#EDEDED",
+        border: "#E4E4E7",
         primary: "#18181B",
         secondary: "#71717A",
-        accent: "#E4E4E7",
+        accent: "#D4D4D8",
       },
       fontFamily: {
         sans: ["Inter", "sans-serif"],
       },
       boxShadow: {
-        subtle: "0 1px 2px 0 rgba(0, 0, 0, 0.02)",
-        card: "0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.02)",
-        float: "0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.025)",
+        subtle: "0 1px 2px rgba(0, 0, 0, 0.04)",
+        card: "0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 10px rgba(0, 0, 0, 0.03)",
+        float: "0 8px 24px rgba(0, 0, 0, 0.08)",
       },
       transitionTimingFunction: {
         sweet: "cubic-bezier(0.16, 1, 0.3, 1)",
@@ -36,7 +36,7 @@ const config: Config = {
         },
       },
       animation: {
-        enter: "enter 0.6s cubic-bezier(0.16, 1, 0.3, 1) both",
+        enter: "enter 0.28s cubic-bezier(0.16, 1, 0.3, 1) both",
         "fade-in": "enter 0.35s ease-out both",
       },
     },
@@ -45,4 +45,3 @@ const config: Config = {
 };
 
 export default config;
-

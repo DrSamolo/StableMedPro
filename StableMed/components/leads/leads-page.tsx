@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Badge, SectionTitle, SlideOver, Avatar, Modal, CustomSelect } from '@/components/Common';
+import { Card, Badge, SlideOver, Avatar, Modal, CustomSelect, PageHeader } from '@/components/Common';
 import { FilterBar } from '@/components/FilterBar';
 import { Lead, Training, Comment } from '@/types';
 import { Search, Phone, Mail, Eye, Upload, Plus, Loader2, Users, Kanban, ArrowRight, MessageSquare, Send, Mic, X, Check, Lock, MapPin, Briefcase, User as UserIcon, FileText, AlertTriangle, RefreshCw, Trash2, CheckSquare, Square, Share2, Shuffle, Filter, Activity } from 'lucide-react';
@@ -588,112 +588,110 @@ const Leads: React.FC = () => {
 
   return (
     <div className="ui-page relative">
-      <div className="flex justify-between items-end mb-8">
-        <SectionTitle title="Leads & Prospects" subtitle="Base de données qualifiée" />
-        <div className="mb-8 flex gap-3">
+      <PageHeader
+        title="Leads"
+        subtitle="Gestion des prospects et suivi commercial"
+        action={
+          <div className="flex gap-2">
             <input type="file" ref={fileInputRef} accept=".csv" className="hidden" onChange={handleImportCSV} />
             <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="ui-btn ui-btn-secondary">
-                {isImporting ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Importer CSV
+                {isImporting ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Import CSV
             </button>
             <button onClick={() => setIsCreateModalOpen(true)} className="ui-btn ui-btn-primary">
-                <Plus size={16} /> Ajouter
+                <Plus size={16} /> Nouveau lead
             </button>
-        </div>
+          </div>
+        }
+      />
+      <div className="mb-4 max-w-3xl">
+        <FilterBar />
+      </div>
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        <CustomSelect 
+            value={selectedProfession}
+            onChange={setSelectedProfession}
+            options={professionOptions}
+            icon={Briefcase}
+            placeholder="Profession"
+            minWidth="190px"
+        />
+        <CustomSelect 
+            value={selectedStatus}
+            onChange={setSelectedStatus}
+            options={statusOptions}
+            icon={Activity}
+            placeholder="Statut"
+            minWidth="160px"
+        />
       </div>
 
-      <FilterBar />
-
-      <div className="flex flex-wrap items-center gap-4 mb-6 w-fit">
-          <CustomSelect 
-              value={selectedProfession}
-              onChange={setSelectedProfession}
-              options={professionOptions}
-              icon={Briefcase}
-              placeholder="Profession"
-              minWidth="180px"
-          />
-          <CustomSelect 
-              value={selectedStatus}
-              onChange={setSelectedStatus}
-              options={statusOptions}
-              icon={Activity}
-              placeholder="Statut"
-              minWidth="160px"
-          />
-      </div>
-
-      <Card noPadding className="overflow-hidden min-h-[400px]">
-        <div className="border-b border-border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
-           <div className="relative group w-full md:w-80">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                    <Search size={16} className="text-gray-400 group-focus-within:text-primary transition-colors" />
-                </div>
-                <input 
-                    type="text" 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Rechercher par nom..." 
-                    className="ui-input pl-10 pr-4"
-                />
-           </div>
-           
-           <div className="flex items-center gap-3 w-full sm:w-auto pt-3 sm:pt-0">
-               <span className="text-xs text-secondary whitespace-nowrap hidden sm:inline">Sélection rapide :</span>
-               <div className="flex items-center shadow-sm w-full sm:w-auto">
-                   <input 
-                        type="number" 
-                        min="1"
-                        max={filteredLeads.length}
-                        value={selectCount}
-                        onChange={(e) => setSelectCount(e.target.value)}
-                        placeholder="Nb" 
-                        className="ui-input w-16 rounded-l-lg rounded-r-none px-2 py-2 text-center text-xs"
-                        onKeyDown={(e) => e.key === 'Enter' && handleQuickSelect()}
-                   />
-                   <button 
-                        onClick={handleQuickSelect}
-                        className="ui-btn ui-btn-secondary flex-1 rounded-l-none border-l-0 px-3 py-2 text-xs sm:flex-none"
-                   >
-                       Sélectionner
-                   </button>
-               </div>
-           </div>
+      <Card noPadding className="min-h-[420px] overflow-hidden border-slate-200">
+        <div className="flex flex-col gap-3 border-b border-border bg-slate-50/60 p-3.5 sm:flex-row sm:items-center sm:justify-between motion-fade-up">
+          <div className="relative w-full md:w-80">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <Search size={16} className="text-slate-400" />
+            </div>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Rechercher par nom..."
+              className="h-10 w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 pl-10 pr-4 text-sm text-zinc-900 outline-none transition focus:border-zinc-300 focus:bg-white focus-visible:shadow-[0_0_0_3px_rgba(24,24,27,0.08)]"
+            />
+          </div>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <span className="hidden whitespace-nowrap text-[13px] font-medium text-secondary sm:inline">Sélection rapide :</span>
+            <input
+              type="number"
+              min="1"
+              max={filteredLeads.length}
+              value={selectCount}
+              onChange={(e) => setSelectCount(e.target.value)}
+              placeholder="Nb"
+              className="ui-input w-20 text-center text-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              onKeyDown={(e) => e.key === 'Enter' && handleQuickSelect()}
+            />
+            <button onClick={handleQuickSelect} className="ui-btn ui-btn-secondary h-9 px-3 py-0 text-xs motion-soft-hover motion-soft-press">
+              Sélectionner
+            </button>
+          </div>
         </div>
-        
         {loading ? (
             <div className="ui-state-box ui-state-loading m-4 flex flex-col items-center justify-center py-20 text-center">
                 <Loader2 className="w-8 h-8 animate-spin mb-2" />
-                <p className="text-sm">Chargement...</p>
+                <p className="ui-state-title">Chargement...</p>
+                <p className="ui-state-text">Récupération des leads et des assignations.</p>
             </div>
         ) : schemaError ? (
-            <div className="ui-state-box ui-state-error m-4 text-sm">
-                Erreur de compatibilite schema: impossible de charger les leads.
+            <div className="ui-state-box ui-state-error m-4 text-center">
+                <p className="ui-state-title">Erreur de compatibilité</p>
+                <p className="ui-state-text">Impossible de charger les leads avec le schéma actuel.</p>
             </div>
         ) : filteredLeads.length === 0 ? (
             <div className="ui-state-box ui-state-empty m-4 flex flex-col items-center justify-center py-20 text-center">
                 <Users size={24} className="text-gray-400 mb-4" />
-                <h3 className="text-lg font-medium text-primary mb-1">Aucun lead trouvé</h3>
-                <p className="text-xs text-gray-400">Essayez de modifier vos filtres.</p>
+                <p className="ui-state-title">Aucun lead trouvé</p>
+                <p className="ui-state-text">Essayez de modifier vos filtres.</p>
             </div>
         ) : (
             <div className="overflow-x-auto">
             <table className="ui-table text-left text-sm">
             <thead className="border-b border-border">
                 <tr>
-                <th className="px-6 py-4 font-medium w-12">
+                <th className="w-12 px-3 py-3 text-[12px] font-semibold text-zinc-500 md:px-6">
                      <div 
-                        className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${selectedLeadIds.length > 0 && selectedLeadIds.length === filteredLeads.length ? 'bg-primary border-primary text-white' : 'border-gray-300 bg-white'}`}
+                        className={`w-4 h-4 rounded-sm border flex items-center justify-center cursor-pointer transition-colors ${selectedLeadIds.length > 0 && selectedLeadIds.length === filteredLeads.length ? 'bg-zinc-800 border-zinc-800 text-white' : 'border-zinc-300 bg-white'}`}
                         onClick={handleSelectAll}
                      >
                          {selectedLeadIds.length > 0 && selectedLeadIds.length === filteredLeads.length && <Check size={10} />}
                      </div>
                 </th>
-                <th className="px-6 py-4 font-medium">Nom</th>
-                <th className="px-6 py-4 font-medium">Profession</th>
-                <th className="px-6 py-4 font-medium">Localisation</th>
-                <th className="px-6 py-4 font-medium">Statut</th>
-                <th className="px-6 py-4 font-medium">Responsable</th>
-                <th className="px-6 py-4 font-medium text-right">Actions</th>
+                <th className="px-3 py-3 text-[12px] font-semibold text-zinc-500 md:px-6">Nom</th>
+                <th className="px-3 py-3 text-[12px] font-semibold text-zinc-500 md:px-6">Profession</th>
+                <th className="px-3 py-3 text-[12px] font-semibold text-zinc-500 md:px-6">Localisation</th>
+                <th className="px-3 py-3 text-[12px] font-semibold text-zinc-500 md:px-6">Statut</th>
+                <th className="px-3 py-3 text-[12px] font-semibold text-zinc-500 md:px-6">Responsable</th>
+                <th className="px-3 py-3 text-right text-[12px] font-semibold text-zinc-500 md:px-6">Actions</th>
                 </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -702,44 +700,44 @@ const Leads: React.FC = () => {
                   return (
                     <tr 
                         key={lead.id} 
-                        className={`hover:bg-gray-50/50 transition-colors group cursor-pointer animate-enter ${isSelected ? 'bg-gray-50' : ''}`} 
-                        style={{ animationDelay: `${idx * 50}ms` }}
+                        className={`group ui-table-row motion-fade-up ${isSelected ? 'ui-table-row-selected' : ''}`}
+                        style={{ animationDelay: `${idx * 20}ms` }}
                         onClick={() => setSelectedLead(lead)}
                     >
-                        <td className="px-6 py-4" onClick={(e) => { e.stopPropagation(); handleSelectOne(lead.id); }}>
-                             <div className={`w-4 h-4 rounded border flex items-center justify-center cursor-pointer transition-colors ${isSelected ? 'bg-primary border-primary text-white' : 'border-gray-300 bg-white'}`}>
+                        <td className="px-3 py-3 md:px-6" onClick={(e) => { e.stopPropagation(); handleSelectOne(lead.id); }}>
+                             <div className={`w-4 h-4 rounded-sm border flex items-center justify-center cursor-pointer transition-colors ${isSelected ? 'bg-zinc-800 border-zinc-800 text-white' : 'border-zinc-300 bg-white'}`}>
                                  {isSelected && <Check size={10} />}
                              </div>
                         </td>
-                        <td className="px-6 py-4 font-medium text-primary">
+                        <td className="px-3 py-3 font-medium text-primary md:px-6">
                         <div className="flex items-center gap-3">
                             <Avatar name={lead.name} size="sm" />
-                            <div>
-                            {lead.name}
-                            {lead.client_reference && <span className="ml-2 text-[10px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-500 font-mono">{lead.client_reference}</span>}
-                            <div className="text-xs text-gray-400 font-light mt-0.5">{lead.email}</div>
+                            <div className="min-w-0">
+                            <span className="truncate text-sm font-medium">{lead.name}</span>
+                            {lead.client_reference && <span className="ml-2 rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-500">{lead.client_reference}</span>}
+                            <div className="mt-0.5 truncate text-[12px] text-zinc-500">{lead.email}</div>
                             </div>
                         </div>
                         </td>
-                        <td className="px-6 py-4 text-secondary">{lead.profession || lead.specialty}</td>
-                        <td className="px-6 py-4 text-secondary">{lead.location}</td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-3 text-secondary md:px-6">{lead.profession || lead.specialty}</td>
+                        <td className="px-3 py-3 text-secondary md:px-6">{lead.location}</td>
+                        <td className="px-3 py-3 md:px-6">
                         <Badge variant={lead.status === 'qualified' ? 'success' : lead.status === 'contacted' ? 'blue' : lead.status === 'closed' ? 'neutral' : lead.status === 'lost' ? 'warning' : 'neutral'}>
                             {lead.status === 'qualified' ? 'Qualifié' : lead.status === 'contacted' ? 'Contacté' : lead.status === 'closed' ? 'Fermé' : lead.status === 'lost' ? 'Perdu' : 'Nouveau'}
                         </Badge>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-3 py-3 md:px-6">
                             {lead.assignee ? (
                                 <div className="flex items-center gap-2" title={lead.assignee.full_name}>
-                                    <Avatar name={lead.assignee.full_name || 'U'} size="sm" />
+                                    <Avatar name={lead.assignee.full_name || 'U'} src={lead.assignee.avatar_url || null} size="sm" />
                                     <span className="text-xs text-secondary truncate max-w-[80px] hidden xl:block">{lead.assignee.full_name}</span>
                                 </div>
                             ) : <span className="text-xs text-gray-300">-</span>}
                         </td>
-                        <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={(e) => handleCall(lead, e)} className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"><Phone size={16} strokeWidth={1.5} /></button>
-                            <button onClick={(e) => handleEmail(lead, e)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"><Mail size={16} strokeWidth={1.5} /></button>
+                        <td className="px-3 py-3 text-right md:px-6">
+                        <div className="ui-table-action flex items-center justify-end gap-2">
+                            <button onClick={(e) => handleCall(lead, e)} className="ui-focus rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-emerald-50 hover:text-emerald-600"><Phone size={16} strokeWidth={1.5} /></button>
+                            <button onClick={(e) => handleEmail(lead, e)} className="ui-focus rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700"><Mail size={16} strokeWidth={1.5} /></button>
                         </div>
                         </td>
                     </tr>
@@ -751,14 +749,14 @@ const Leads: React.FC = () => {
       </Card>
 
       {selectedLeadIds.length > 0 && (
-          <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white border border-gray-200 shadow-xl rounded-full px-6 py-3 flex items-center gap-6 z-40 animate-slide-up">
-              <span className="text-sm font-medium text-primary whitespace-nowrap">{selectedLeadIds.length} sélectionné(s)</span>
+          <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-md border border-zinc-200 bg-white/92 px-3.5 py-2 shadow-card backdrop-blur-sm motion-scale-in">
+              <span className="whitespace-nowrap text-[13px] font-semibold text-primary">{selectedLeadIds.length} sélectionné(s)</span>
               
               <div className="h-4 w-px bg-gray-200"></div>
               
               <button 
                   onClick={() => setIsBulkAssignModalOpen(true)}
-                  className="flex items-center gap-2 text-sm font-medium text-secondary hover:text-primary transition-colors"
+                  className="ui-focus inline-flex h-8 items-center gap-2 rounded-md px-2.5 text-[13px] font-medium text-secondary transition-colors hover:bg-zinc-100 hover:text-primary motion-soft-hover motion-soft-press"
               >
                   <Share2 size={16} /> Assigner
               </button>
@@ -767,7 +765,7 @@ const Leads: React.FC = () => {
 
               <button 
                   onClick={executeBulkDelete}
-                  className="flex items-center gap-2 text-sm font-medium text-rose-500 hover:text-rose-600 transition-colors"
+                  className="ui-focus inline-flex h-8 items-center gap-2 rounded-md px-2.5 text-[13px] font-medium text-rose-500 transition-colors hover:bg-rose-50 hover:text-rose-600 motion-soft-hover motion-soft-press"
               >
                   <Trash2 size={16} /> Supprimer
               </button>
@@ -776,7 +774,7 @@ const Leads: React.FC = () => {
 
               <button 
                   onClick={() => setSelectedLeadIds([])}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="ui-focus inline-flex h-8 items-center rounded-md px-2 text-gray-400 transition-colors hover:bg-zinc-100 hover:text-gray-600 motion-soft-hover motion-soft-press"
               >
                   <X size={16} />
               </button>
@@ -784,39 +782,41 @@ const Leads: React.FC = () => {
       )}
 
       <Modal isOpen={isBulkAssignModalOpen} onClose={() => setIsBulkAssignModalOpen(false)}>
-          <div className="bg-surface p-6 rounded-lg w-full max-w-lg">
-              <h3 className="text-lg font-medium text-primary mb-4">Assignation de masse</h3>
-              <p className="text-sm text-secondary mb-6">Comment souhaitez-vous répartir les {selectedLeadIds.length} leads sélectionnés ?</p>
+          <div className="w-full max-w-lg rounded-md bg-surface p-6">
+              <div className="mb-5 border-b border-zinc-200 pb-3">
+                <h3 className="text-lg font-medium text-primary">Assignation de masse</h3>
+                <p className="mt-1 text-sm text-secondary">Comment souhaitez-vous répartir les {selectedLeadIds.length} leads sélectionnés ?</p>
+              </div>
 
-              <div className="flex gap-2 mb-6">
+              <div className="mb-5 inline-flex w-full rounded-md border border-zinc-200 bg-white p-1">
                   <button 
                     onClick={() => setBulkAssignType('single')}
-                    className={`flex-1 py-2 text-xs font-medium rounded border ${bulkAssignType === 'single' ? 'bg-primary text-white border-primary' : 'bg-white text-secondary border-gray-200'}`}
+                    className={`ui-focus flex-1 rounded px-3 py-2 text-xs font-medium transition ${bulkAssignType === 'single' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'}`}
                   >
                       Individuel
                   </button>
                   <button 
                     onClick={() => setBulkAssignType('team')}
-                    className={`flex-1 py-2 text-xs font-medium rounded border ${bulkAssignType === 'team' ? 'bg-primary text-white border-primary' : 'bg-white text-secondary border-gray-200'}`}
+                    className={`ui-focus flex-1 rounded px-3 py-2 text-xs font-medium transition ${bulkAssignType === 'team' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'}`}
                   >
                       Par Équipe (Équitable)
                   </button>
                   <button 
                     onClick={() => setBulkAssignType('multiple')}
-                    className={`flex-1 py-2 text-xs font-medium rounded border ${bulkAssignType === 'multiple' ? 'bg-primary text-white border-primary' : 'bg-white text-secondary border-gray-200'}`}
+                    className={`ui-focus flex-1 rounded px-3 py-2 text-xs font-medium transition ${bulkAssignType === 'multiple' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'}`}
                   >
                       Multi-sélection
                   </button>
               </div>
 
-              <div className="mb-6">
+              <div className="mb-6 space-y-4">
                   {bulkAssignType === 'single' && (
-                      <div>
-                          <label className="block text-xs font-medium text-secondary mb-2">Sélectionner un commercial</label>
+                      <div className="rounded-md border border-zinc-200 bg-zinc-50/60 p-3">
+                    <label className="ui-field-label mb-2">Sélectionner un commercial</label>
                           <select 
                             value={bulkTargetUser} 
                             onChange={(e) => setBulkTargetUser(e.target.value)} 
-                            className="w-full p-2 border border-border rounded text-sm bg-white outline-none focus:ring-1 focus:ring-primary"
+                            className="ui-input"
                           >
                               <option value="">-- Choisir --</option>
                               {users.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
@@ -825,18 +825,18 @@ const Leads: React.FC = () => {
                   )}
 
                   {bulkAssignType === 'team' && (
-                      <div>
-                           <label className="block text-xs font-medium text-secondary mb-2">Sélectionner une équipe</label>
+                      <div className="rounded-md border border-zinc-200 bg-zinc-50/60 p-3">
+                           <label className="ui-field-label mb-2">Sélectionner une équipe</label>
                            <select 
                              value={bulkTargetTeam} 
                              onChange={(e) => setBulkTargetTeam(e.target.value)} 
-                             className="w-full p-2 border border-border rounded text-sm bg-white outline-none focus:ring-1 focus:ring-primary"
+                             className="ui-input"
                            >
                                <option value="">-- Choisir --</option>
                                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                            </select>
                            {bulkTargetTeam && (
-                               <div className="mt-2 p-2 bg-blue-50 text-blue-800 text-xs rounded flex items-center gap-2">
+                               <div className="mt-2 flex items-center gap-2 rounded bg-zinc-100 p-2 text-xs text-zinc-700">
                                    <Shuffle size={12} /> Distribution équitable entre les {users.filter(u => u.team_id === bulkTargetTeam).length} membres.
                                </div>
                            )}
@@ -844,16 +844,16 @@ const Leads: React.FC = () => {
                   )}
 
                   {bulkAssignType === 'multiple' && (
-                      <div>
-                          <label className="block text-xs font-medium text-secondary mb-2">Sélectionner les commerciaux</label>
-                          <div className="border border-border rounded max-h-40 overflow-y-auto p-2 space-y-1">
+                      <div className="rounded-md border border-zinc-200 bg-zinc-50/60 p-3">
+                          <label className="ui-field-label mb-2">Sélectionner les commerciaux</label>
+                          <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border border-zinc-200 bg-white p-2">
                               {users.map(u => (
                                   <div 
                                     key={u.id} 
                                     onClick={() => toggleBulkUserSelect(u.id)}
-                                    className={`flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-gray-50 text-sm ${bulkTargetUsers.includes(u.id) ? 'bg-blue-50 text-blue-700' : 'text-primary'}`}
+                                    className={`flex items-center gap-2 p-2 rounded cursor-pointer hover:bg-gray-50 text-sm ${bulkTargetUsers.includes(u.id) ? 'bg-zinc-100 text-zinc-800' : 'text-primary'}`}
                                   >
-                                      <div className={`w-4 h-4 border rounded flex items-center justify-center ${bulkTargetUsers.includes(u.id) ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                                      <div className={`w-4 h-4 border rounded flex items-center justify-center ${bulkTargetUsers.includes(u.id) ? 'bg-zinc-700 border-zinc-700' : 'border-gray-300'}`}>
                                           {bulkTargetUsers.includes(u.id) && <Check size={10} className="text-white" />}
                                       </div>
                                       {u.full_name || u.email}
@@ -867,12 +867,12 @@ const Leads: React.FC = () => {
                   )}
               </div>
 
-              <div className="flex justify-end gap-3">
-                  <button onClick={() => setIsBulkAssignModalOpen(false)} className="px-4 py-2 text-sm text-secondary hover:bg-gray-50 rounded-md">Annuler</button>
+              <div className="flex justify-end gap-2 border-t border-zinc-200 pt-4">
+                  <button onClick={() => setIsBulkAssignModalOpen(false)} className="ui-btn ui-btn-secondary">Annuler</button>
                   <button 
                     onClick={executeBulkAssign} 
                     disabled={isProcessingBulk} 
-                    className="px-4 py-2 bg-primary text-white text-sm rounded-md hover:bg-black disabled:opacity-50 flex items-center gap-2"
+                    className="ui-btn ui-btn-primary disabled:opacity-50"
                   >
                       {isProcessingBulk ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Valider
                   </button>
@@ -953,39 +953,31 @@ const Leads: React.FC = () => {
         )}
       </SlideOver>
 
-      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)}>
-        <div className="bg-surface p-6 rounded-lg w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <h3 className="text-lg font-medium text-primary mb-6">Nouveau Contact</h3>
-            <div className="space-y-4">
-                <div className="mb-4">
-                    <label className="block text-xs font-medium text-secondary mb-1">Assigné à</label>
-                    <select value={newLead.user_id} onChange={(e) => setNewLead({...newLead, user_id: e.target.value})} disabled={profile?.role === 'commercial'} className="w-full px-3 py-2 border border-border rounded-md text-sm bg-white">
+      <SlideOver isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Nouveau Contact" maxWidth="2xl">
+            <p className="mb-5 text-sm text-secondary">Créez un lead avec les informations essentielles.</p>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="rounded-md border border-zinc-200 bg-zinc-50/60 p-3 md:col-span-2">
+                    <label className="ui-field-label">Assigné à</label>
+                    <select value={newLead.user_id} onChange={(e) => setNewLead({...newLead, user_id: e.target.value})} disabled={profile?.role === 'commercial'} className="ui-input">
                         <option value="">Assigner automatiquement (Moi)</option>
                         {users.map(u => (<option key={u.id} value={u.id}>{u.full_name || u.email}</option>))}
                     </select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                     <div><label className="block text-xs font-medium text-secondary mb-1">Prénom</label><input type="text" value={newLead.first_name} onChange={(e) => setNewLead({...newLead, first_name: e.target.value})} className="w-full px-3 py-2 border border-border rounded-md text-sm" /></div>
-                     <div><label className="block text-xs font-medium text-secondary mb-1">Nom</label><input type="text" value={newLead.last_name} onChange={(e) => setNewLead({...newLead, last_name: e.target.value})} className="w-full px-3 py-2 border border-border rounded-md text-sm" /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                     <div><label className="block text-xs font-medium text-secondary mb-1">Profession</label><input type="text" value={newLead.profession} onChange={(e) => setNewLead({...newLead, profession: e.target.value})} className="w-full px-3 py-2 border border-border rounded-md text-sm" /></div>
-                     <div><label className="block text-xs font-medium text-secondary mb-1">Réf. Client</label><input type="text" value={newLead.client_reference} onChange={(e) => setNewLead({...newLead, client_reference: e.target.value})} className="w-full px-3 py-2 border border-border rounded-md text-sm" /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div><label className="block text-xs font-medium text-secondary mb-1">Email</label><input type="email" value={newLead.email} onChange={(e) => setNewLead({...newLead, email: e.target.value})} className="w-full px-3 py-2 border border-border rounded-md text-sm" /></div>
-                    <div><label className="block text-xs font-medium text-secondary mb-1">Téléphone</label><input type="text" value={newLead.phone} onChange={(e) => setNewLead({...newLead, phone: e.target.value})} className="w-full px-3 py-2 border border-border rounded-md text-sm" /></div>
-                </div>
-                 <div><label className="block text-xs font-medium text-secondary mb-1">Ville</label><input type="text" value={newLead.location} onChange={(e) => setNewLead({...newLead, location: e.target.value})} className="w-full px-3 py-2 border border-border rounded-md text-sm" /></div>
-                <div><label className="block text-xs font-medium text-secondary mb-1">Adresse Complète</label><textarea value={newLead.address} onChange={(e) => setNewLead({...newLead, address: e.target.value})} className="w-full px-3 py-2 border border-border rounded-md text-sm h-16 resize-none" /></div>
-                <div className="p-3 bg-yellow-50/50 border border-yellow-100 rounded-md"><label className="block text-xs font-bold text-yellow-800 mb-1 flex items-center gap-1"><Lock size={10} /> Info Sécurisée</label><input type="text" value={newLead.secure_info} onChange={(e) => setNewLead({...newLead, secure_info: e.target.value})} className="w-full px-3 py-2 border border-yellow-200 bg-white rounded-md text-sm" /></div>
-                <div className="flex justify-end gap-3 mt-6">
-                    <button onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 text-sm text-secondary hover:bg-gray-50 rounded-md">Annuler</button>
-                    <button onClick={handleCreateLead} className="px-4 py-2 bg-primary text-white text-sm rounded-md hover:bg-black">Créer</button>
+                <div><label className="ui-field-label">Prénom</label><input type="text" value={newLead.first_name} onChange={(e) => setNewLead({...newLead, first_name: e.target.value})} className="ui-input" /></div>
+                <div><label className="ui-field-label">Nom</label><input type="text" value={newLead.last_name} onChange={(e) => setNewLead({...newLead, last_name: e.target.value})} className="ui-input" /></div>
+                <div><label className="ui-field-label">Profession</label><input type="text" value={newLead.profession} onChange={(e) => setNewLead({...newLead, profession: e.target.value})} className="ui-input" /></div>
+                <div><label className="ui-field-label">Réf. Client</label><input type="text" value={newLead.client_reference} onChange={(e) => setNewLead({...newLead, client_reference: e.target.value})} className="ui-input" /></div>
+                <div><label className="ui-field-label">Email</label><input type="email" value={newLead.email} onChange={(e) => setNewLead({...newLead, email: e.target.value})} className="ui-input" /></div>
+                <div><label className="ui-field-label">Téléphone</label><input type="text" value={newLead.phone} onChange={(e) => setNewLead({...newLead, phone: e.target.value})} className="ui-input" /></div>
+                <div><label className="ui-field-label">Ville</label><input type="text" value={newLead.location} onChange={(e) => setNewLead({...newLead, location: e.target.value})} className="ui-input" /></div>
+                <div><label className="ui-field-label">Adresse Complète</label><textarea value={newLead.address} onChange={(e) => setNewLead({...newLead, address: e.target.value})} className="ui-input h-16 resize-none" /></div>
+                <div className="rounded-md border border-yellow-100 bg-yellow-50/50 p-3 md:col-span-2"><label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.06em] text-yellow-800"><Lock size={10} /> Info Sécurisée</label><input type="text" value={newLead.secure_info} onChange={(e) => setNewLead({...newLead, secure_info: e.target.value})} className="ui-input border-yellow-200 bg-white" /></div>
+                <div className="mt-2 flex justify-end gap-2 border-t border-zinc-200 pt-4 md:col-span-2">
+                    <button onClick={() => setIsCreateModalOpen(false)} className="ui-btn ui-btn-secondary">Annuler</button>
+                    <button onClick={handleCreateLead} className="ui-btn ui-btn-primary">Créer</button>
                 </div>
             </div>
-        </div>
-      </Modal>
+      </SlideOver>
 
       <Modal isOpen={isCallModalOpen} onClose={() => setIsCallModalOpen(false)}>
         <div className="bg-surface p-6 flex flex-col items-center">

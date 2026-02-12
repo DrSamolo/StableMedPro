@@ -82,9 +82,9 @@ export function ChatInput({ participants, isSending, onSend, errorMessage }: Cha
   }
 
   return (
-    <div className="border-t border-zinc-200 p-3">
+    <div className="border-t border-zinc-200 bg-white p-3 motion-fade-up">
       <div className="relative">
-        <div className="flex items-end gap-2">
+        <div className="flex items-end gap-2 rounded-md border border-zinc-200 bg-zinc-50/80 p-2 shadow-subtle motion-fade-up">
           <textarea
             ref={textareaRef}
             value={draft}
@@ -131,13 +131,13 @@ export function ChatInput({ participants, isSending, onSend, errorMessage }: Cha
             rows={2}
             disabled={isSending}
             placeholder="Ecrire un message... (utilise @ pour mentionner)"
-            className="ui-focus min-h-[2.5rem] w-full resize-none rounded-md border border-zinc-300 px-3 py-2 text-sm disabled:bg-zinc-100"
+            className="ui-focus min-h-[2.5rem] w-full resize-none rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 disabled:bg-zinc-100"
           />
           <button
             type="button"
             onClick={() => void submitDraft()}
             disabled={!draft.trim() || isSending}
-            className="ui-focus inline-flex h-10 w-10 items-center justify-center rounded-md bg-zinc-900 text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="ui-focus inline-flex h-9 w-9 items-center justify-center rounded-md border border-zinc-900 bg-zinc-900 text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60 motion-soft-hover motion-soft-press"
             aria-label="Envoyer"
           >
             <Send className="h-4 w-4" />
@@ -145,7 +145,7 @@ export function ChatInput({ participants, isSending, onSend, errorMessage }: Cha
         </div>
 
         {mentionContext && suggestions.length > 0 ? (
-          <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-20 w-full max-w-sm rounded-lg border border-zinc-200 bg-white p-1 shadow-lg">
+          <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-20 w-full max-w-sm rounded-md border border-zinc-200 bg-white p-1 shadow-card motion-scale-in">
             {suggestions.map((participant, index) => {
               const isSelected = index === selectedIndex;
               return (
@@ -156,12 +156,12 @@ export function ChatInput({ participants, isSending, onSend, errorMessage }: Cha
                     event.preventDefault();
                     applyMention(participant);
                   }}
-                  className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm ${
-                    isSelected ? "bg-zinc-900 text-white" : "text-zinc-700 hover:bg-zinc-100"
+                  className={`flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-left text-sm ${
+                    isSelected ? "bg-zinc-100 text-zinc-900" : "text-zinc-700 hover:bg-zinc-100"
                   }`}
                 >
                   <span className="truncate">{participant.display_name}</span>
-                  <span className={`ml-2 text-xs ${isSelected ? "text-zinc-200" : "text-zinc-500"}`}>
+                  <span className={`ml-2 text-xs ${isSelected ? "text-zinc-600" : "text-zinc-500"}`}>
                     @{participant.mention_value}
                   </span>
                 </button>

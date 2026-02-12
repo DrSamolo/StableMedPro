@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Card, SectionTitle, Avatar, Badge, Modal } from '@/components/Common';
+import { Card, SectionTitle, Avatar, Modal } from '@/components/Common';
 import { User, Shield, LogOut, Loader2, Save, Camera, Upload, Database, RefreshCw, Users, Lock, AlertTriangle, Zap, Copy, RotateCcw, Plus, Briefcase, Mail, Send, CheckCircle, Sliders, Activity, XCircle, Play } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
@@ -16,7 +16,7 @@ const SETTINGS_ROLES_CACHE_TTL_MS = 120_000;
 
 const SettingSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="mb-10">
-    <h3 className="text-sm font-medium text-primary uppercase tracking-wide mb-4 border-b border-border pb-2">{title}</h3>
+    <h3 className="ui-section-title mb-4 border-b border-border pb-2 text-primary">{title}</h3>
     <div className="space-y-4">
       {children}
     </div>
@@ -240,16 +240,34 @@ const Settings: React.FC = () => {
   const handleUploadAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
       setIsUploading(true);
+      if (!user?.id) throw new Error("Utilisateur non authentifié.");
       if (!event.target.files || event.target.files.length === 0) throw new Error('Aucun fichier sélectionné.');
       const file = event.target.files[0];
-      const filePath = `${profile?.id}/${Math.random()}.${file.name.split('.').pop()}`;
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file);
+      if (file.size > 5 * 1024 * 1024) throw new Error("Le fichier dépasse 5MB.");
+
+      const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const filePath = `${user.id}/avatar.${extension}`;
+      const { error: uploadError } = await supabase.storage.from('avatars').upload(filePath, file, {
+        upsert: true,
+        contentType: file.type || 'image/jpeg',
+        cacheControl: '3600',
+      });
       if (uploadError) throw uploadError;
       const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
-      if (data) setAvatarUrl(data.publicUrl);
+      if (data?.publicUrl) {
+        setAvatarUrl(data.publicUrl);
+        const { error: profileUpdateError } = await supabase
+          .from('profiles')
+          .update({ avatar_url: data.publicUrl })
+          .eq('id', user.id);
+        if (profileUpdateError) throw profileUpdateError;
+        await refreshProfile();
+        addNotification('success', 'Photo de profil mise à jour');
+      }
     } catch (error: any) {
       addNotification('error', 'Erreur upload : ' + error.message);
     } finally {
+      if (event.target) event.target.value = '';
       setIsUploading(false);
     }
   };
@@ -497,30 +515,30 @@ const Settings: React.FC = () => {
         <div className="lg:col-span-1">
            <Card noPadding>
                 <nav className="flex flex-col p-2">
-                    <button onClick={() => setActiveTab('profile')} className={`ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'profile' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
+                    <button onClick={() => setActiveTab('profile')} className={`ui-focus flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'profile' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
                         <User size={16} /> Mon Profil
                     </button>
-                    <button onClick={() => setActiveTab('team')} className={`ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'team' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
+                    <button onClick={() => setActiveTab('team')} className={`ui-focus flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'team' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
                         <Users size={16} /> Équipe & Invitations
                     </button>
                     {isAdmin && (
                         <>
-                        <button onClick={() => setActiveTab('roles')} className={`ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'roles' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
+                        <button onClick={() => setActiveTab('roles')} className={`ui-focus flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'roles' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
                             <Shield size={16} /> Rôles & Permissions
                         </button>
-                        <button onClick={() => setActiveTab('api')} className={`ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'api' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
+                        <button onClick={() => setActiveTab('api')} className={`ui-focus flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'api' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
                             <Sliders size={16} /> Intégrations (API)
                         </button>
-                        <button onClick={() => setActiveTab('tests')} className={`ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'tests' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
+                        <button onClick={() => setActiveTab('tests')} className={`ui-focus flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'tests' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
                             <Activity size={16} /> Diagnostic Système
                         </button>
                         </>
                     )}
-                    <button onClick={() => setActiveTab('database')} className={`ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'database' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
+                    <button onClick={() => setActiveTab('database')} className={`ui-focus flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'database' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
                         <Database size={16} /> Base de données
                     </button>
                     <div className="h-px bg-border my-2 mx-3"></div>
-                    <button onClick={() => signOut()} className="ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50">
+                    <button onClick={() => signOut()} className="ui-focus flex items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50">
                         <LogOut size={16} /> Déconnexion
                     </button>
                 </nav>
@@ -534,7 +552,11 @@ const Settings: React.FC = () => {
                       <div className="flex items-center gap-6 mb-6">
                           <div className="relative group">
                               <div className="w-20 h-20 rounded bg-gray-100 overflow-hidden border border-border flex items-center justify-center relative">
-                                {isUploading ? <Loader2 className="animate-spin text-primary" /> : avatarUrl ? <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" /> : <span className="text-2xl font-medium text-gray-500">{fullName?.charAt(0) || 'U'}</span>}
+                                {isUploading ? (
+                                  <Loader2 className="animate-spin text-primary" />
+                                ) : (
+                                  <Avatar name={fullName || profile?.email || 'Utilisateur'} src={avatarUrl || profile?.avatar_url} size="lg" />
+                                )}
                                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                                     <Camera className="text-white" size={20} />
                                 </div>
@@ -542,38 +564,40 @@ const Settings: React.FC = () => {
                               <input type="file" ref={fileInputRef} onChange={handleUploadAvatar} accept="image/*" className="hidden" />
                           </div>
                           <div className="flex-1">
-                              <label className="block text-sm font-medium text-secondary mb-2">Photo de profil</label>
+                              <label className="ui-field-label">Photo de profil</label>
                               <div className="flex gap-3">
-                                <button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="px-3 py-2 bg-white border border-border rounded text-sm font-medium text-primary hover:bg-gray-50 transition-colors flex items-center gap-2">
+                                <button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="ui-btn ui-btn-secondary">
                                     {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Téléverser
                                 </button>
                               </div>
                           </div>
                       </div>
                       <div className="space-y-4">
-                        <div><label className="block text-sm font-medium text-secondary mb-1">Nom complet</label><input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="w-full px-3 py-2 bg-white border border-border rounded text-sm text-primary focus:outline-none focus:ring-1 focus:ring-primary" /></div>
-                        <div><label className="block text-sm font-medium text-secondary mb-1">Email</label><input type="email" value={profile?.email || ''} disabled className="w-full px-3 py-2 bg-gray-50 border border-border rounded text-sm text-gray-500 cursor-not-allowed" /></div>
+                        <div><label className="ui-field-label">Nom complet</label><input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} className="ui-input" /></div>
+                        <div><label className="ui-field-label">Email</label><input type="email" value={profile?.email || ''} disabled className="ui-input cursor-not-allowed bg-gray-50 text-gray-500" /></div>
                         <div>
-                          <label className="block text-sm font-medium text-secondary mb-1">Rôle actuel</label>
+                          <label className="ui-field-label">Rôle actuel</label>
                           <div className="flex items-center gap-2">
-                             <input type="text" value={profile?.role || 'user'} disabled className="w-full px-3 py-2 bg-gray-50 border border-border rounded text-sm text-gray-500 cursor-not-allowed capitalize" />
-                             <Badge variant="purple">{profile?.role}</Badge>
+                             <input type="text" value={profile?.role || 'user'} disabled className="ui-input cursor-not-allowed bg-gray-50 text-gray-500 capitalize" />
+                             <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium capitalize text-zinc-700">
+                               {profile?.role}
+                             </span>
                           </div>
                         </div>
                       </div>
                   </SettingSection>
                   {!isAdmin && (
-                    <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded flex items-start gap-3">
+                    <div className="mb-6 flex items-start gap-3 rounded-md border border-orange-200 bg-orange-50 p-4">
                         <AlertTriangle className="text-orange-600 shrink-0" size={18} />
                         <div>
                             <h4 className="text-sm font-bold text-orange-800 mb-1">Mode Développeur</h4>
                             <p className="text-xs text-orange-700 mb-3">Auto-promotion Admin (Demo uniquement).</p>
-                            <button onClick={handleForceAdmin} className="px-3 py-1.5 bg-orange-600 text-white text-xs font-medium rounded hover:bg-orange-700">Devenir Admin</button>
+                            <button onClick={handleForceAdmin} className="ui-btn h-8 rounded-md bg-orange-600 px-3 text-xs font-medium text-white hover:bg-orange-700">Devenir Admin</button>
                         </div>
                     </div>
                   )}
                   <div className="flex justify-end pt-4 border-t border-border">
-                      <button onClick={handleUpdateProfile} disabled={isSaving} className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm rounded hover:bg-black transition-colors disabled:opacity-70">
+                      <button onClick={handleUpdateProfile} disabled={isSaving} className="ui-btn ui-btn-primary">
                           {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Enregistrer
                       </button>
                   </div>
@@ -587,10 +611,10 @@ const Settings: React.FC = () => {
                        <SettingSection title="Gestion des Équipes">
                            <div className="flex gap-3 items-end">
                                <div className="flex-1">
-                                   <label className="block text-xs font-medium text-secondary mb-1">Nom de l'équipe</label>
-                                   <input type="text" value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="ex: Équipe Paris..." className="w-full px-3 py-2 bg-white border border-border rounded text-sm outline-none focus:ring-1 focus:ring-primary" />
+                                   <label className="ui-field-label">Nom de l'équipe</label>
+                                   <input type="text" value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="ex: Équipe Paris..." className="ui-input" />
                                </div>
-                               <button onClick={handleCreateTeam} disabled={!newTeamName || isCreatingTeam} className="px-4 py-2 bg-black text-white rounded text-sm hover:opacity-80 disabled:opacity-50 flex items-center gap-2 h-[38px]">
+                               <button onClick={handleCreateTeam} disabled={!newTeamName || isCreatingTeam} className="ui-btn ui-btn-primary">
                                     {isCreatingTeam ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Créer
                                </button>
                            </div>
@@ -636,7 +660,15 @@ const Settings: React.FC = () => {
                     )}
 
                     <h4 className="text-xs font-bold text-secondary uppercase mb-3">Membres Actifs</h4>
-                    {isLoadingTeam ? <div className="flex justify-center py-8"><Loader2 className="animate-spin text-gray-400" /></div> : (
+                    {isLoadingTeam ? (
+                      <div className="ui-state-box ui-state-loading flex justify-center py-8">
+                        <div className="ui-state-stack">
+                          <Loader2 className="animate-spin text-gray-400" />
+                          <p className="ui-state-title">Chargement de l'équipe...</p>
+                          <p className="ui-state-text">Récupération des membres et invitations.</p>
+                        </div>
+                      </div>
+                    ) : (
                       <div className="overflow-x-auto">
                       <table className="ui-table text-left text-sm">
                         <thead className="border-b border-border">
@@ -644,7 +676,7 @@ const Settings: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-border">
                           {teamMembers.map((member) => (
-                              <tr key={member.id}>
+                              <tr key={member.id} className="ui-table-row">
                                   <td className="px-4 py-3">
                                       <div className="flex items-center gap-3">
                                           <Avatar name={member.full_name || member.email} size="sm" />
@@ -653,14 +685,18 @@ const Settings: React.FC = () => {
                                   </td>
                                   <td className="px-4 py-3">
                                       {isAdmin ? (
-                                          <select value={member.role} onChange={(e) => handleChangeRole(member.id, e.target.value as UserRole)} className="bg-white border border-border rounded px-2 py-1 text-xs focus:ring-1 focus:ring-primary cursor-pointer">
+                                          <select value={member.role} onChange={(e) => handleChangeRole(member.id, e.target.value as UserRole)} className="ui-input min-h-0 h-8 cursor-pointer px-2 py-1 text-xs">
                                               <option value="commercial">Commercial</option><option value="manager">Manager</option><option value="admin">Admin</option>
                                           </select>
-                                      ) : <Badge variant="neutral">{member.role}</Badge>}
+                                      ) : (
+                                        <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium capitalize text-zinc-700">
+                                          {member.role}
+                                        </span>
+                                      )}
                                   </td>
                                   <td className="px-4 py-3">
                                       {isAdmin ? (
-                                        <select value={member.team_id || 'none'} onChange={(e) => handleChangeTeam(member.id, e.target.value)} disabled={member.role === 'admin'} className="bg-white border border-border rounded px-2 py-1 text-xs focus:ring-1 focus:ring-primary w-full max-w-[150px] cursor-pointer">
+                                        <select value={member.team_id || 'none'} onChange={(e) => handleChangeTeam(member.id, e.target.value)} disabled={member.role === 'admin'} className="ui-input min-h-0 h-8 w-full max-w-[150px] cursor-pointer px-2 py-1 text-xs">
                                             <option value="none">-- Aucune --</option>
                                             {teams.map(t => (<option key={t.id} value={t.id}>{t.name}</option>))}
                                         </select>
@@ -684,7 +720,7 @@ const Settings: React.FC = () => {
                             <h3 className="text-sm font-medium text-primary uppercase tracking-wide mb-1">Rôles & Permissions</h3>
                             <p className="text-sm text-secondary">Définissez ce que chaque rôle est autorisé à faire.</p>
                         </div>
-                        <button onClick={handleResetRoles} disabled={isResettingRoles} className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border border-gray-200 text-gray-600 rounded text-xs hover:bg-gray-100 transition-colors">
+                        <button onClick={handleResetRoles} disabled={isResettingRoles} className="ui-btn ui-btn-secondary h-8 px-3 text-xs">
                             {isResettingRoles ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Réinitialiser
                         </button>
                     </div>
@@ -698,7 +734,7 @@ const Settings: React.FC = () => {
                             </thead>
                             <tbody className="divide-y divide-border">
                                 {PERMISSIONS_CONFIG.map(perm => (
-                                    <tr key={perm.key}>
+                                    <tr key={perm.key} className="ui-table-row">
                                         <td className="p-3 text-secondary text-sm">{perm.label}</td>
                                         {rolePermissions.map(rp => {
                                             const isTargetAdmin = rp.role === 'admin';
@@ -747,11 +783,7 @@ const Settings: React.FC = () => {
                     <SettingSection title="Diagnostic & Robustesse">
                         <div className="flex items-center justify-between mb-6">
                             <p className="text-sm text-secondary">Exécutez une série de tests automatisés pour vérifier l'intégrité du système, la sécurité des rôles et la connexion API.</p>
-                            <button 
-                                onClick={runSystemTests} 
-                                disabled={isRunningTests}
-                                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded text-sm font-medium hover:bg-black transition-colors disabled:opacity-50"
-                            >
+                            <button onClick={runSystemTests} disabled={isRunningTests} className="ui-btn ui-btn-primary">
                                 {isRunningTests ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />} Lancer le Diagnostic
                             </button>
                         </div>
@@ -776,8 +808,11 @@ const Settings: React.FC = () => {
                             </div>
                         )}
                         {testResults.length === 0 && !isRunningTests && (
-                            <div className="text-center py-12 bg-gray-50 border border-dashed border-gray-200 rounded-lg text-secondary text-sm">
-                                Aucun test récent. Cliquez sur "Lancer le Diagnostic".
+                            <div className="ui-state-box ui-state-empty border-dashed py-12 text-center">
+                                <div className="ui-state-stack">
+                                  <p className="ui-state-title">Aucun test récent</p>
+                                  <p className="ui-state-text">Cliquez sur "Lancer le Diagnostic".</p>
+                                </div>
                             </div>
                         )}
                     </SettingSection>
@@ -791,7 +826,7 @@ const Settings: React.FC = () => {
                         <Database size={18} className="text-secondary" />
                         <div><h4 className="text-sm font-medium text-primary">État de la connexion</h4><p className="text-xs text-secondary">Connecté en tant que {profile?.role}.</p></div>
                     </div>
-                    <button onClick={handleReloadSchema} disabled={isReloadingSchema} className="flex items-center gap-2 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition-all shadow-sm w-fit">
+                    <button onClick={handleReloadSchema} disabled={isReloadingSchema} className="ui-btn h-9 w-fit border border-emerald-100 bg-emerald-50 text-sm font-medium text-emerald-700 hover:bg-emerald-100">
                         {isReloadingSchema ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />} Rafraîchir le schéma
                     </button>
                 </SettingSection>
@@ -802,34 +837,34 @@ const Settings: React.FC = () => {
 
       {/* Invite Modal */}
       <Modal isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)}>
-         <div className="bg-surface p-6 rounded w-full max-w-md">
+         <div className="w-full max-w-md rounded-md bg-surface p-6">
             <h3 className="text-lg font-medium text-primary mb-6">Inviter un nouveau membre</h3>
             {!lastInviteLink ? (
                 <div className="space-y-4">
                     <div>
-                        <label className="block text-xs font-medium text-secondary mb-1">Email</label>
-                        <input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="w-full px-3 py-2 bg-white border border-border rounded text-sm focus:ring-1 focus:ring-primary outline-none" placeholder="collegue@stablemed.fr" />
+                        <label className="ui-field-label">Email</label>
+                        <input type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} className="ui-input" placeholder="collegue@stablemed.fr" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-medium text-secondary mb-1">Rôle</label>
-                            <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as UserRole)} className="w-full px-3 py-2 bg-white border border-border rounded text-sm focus:ring-1 focus:ring-primary outline-none">
+                            <label className="ui-field-label">Rôle</label>
+                            <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as UserRole)} className="ui-input">
                                 <option value="commercial">Commercial</option>
                                 <option value="manager">Manager</option>
                                 <option value="admin">Admin</option>
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-secondary mb-1">Équipe (Optionnel)</label>
-                            <select value={inviteTeamId} onChange={(e) => setInviteTeamId(e.target.value)} className="w-full px-3 py-2 bg-white border border-border rounded text-sm focus:ring-1 focus:ring-primary outline-none">
+                            <label className="ui-field-label">Équipe (Optionnel)</label>
+                            <select value={inviteTeamId} onChange={(e) => setInviteTeamId(e.target.value)} className="ui-input">
                                 <option value="">Aucune</option>
                                 {teams.map(t => (<option key={t.id} value={t.id}>{t.name}</option>))}
                             </select>
                         </div>
                     </div>
                     <div className="flex justify-end gap-3 pt-4">
-                        <button onClick={() => setIsInviteModalOpen(false)} className="px-4 py-2 text-sm text-secondary hover:bg-gray-50 rounded">Annuler</button>
-                        <button onClick={handleInviteUser} disabled={!inviteEmail || isSendingInvite} className="px-4 py-2 bg-primary text-white text-sm rounded hover:bg-black flex items-center gap-2">
+                        <button onClick={() => setIsInviteModalOpen(false)} className="ui-btn ui-btn-secondary">Annuler</button>
+                        <button onClick={handleInviteUser} disabled={!inviteEmail || isSendingInvite} className="ui-btn ui-btn-primary">
                             {isSendingInvite ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />} Générer le lien
                         </button>
                     </div>
@@ -843,7 +878,7 @@ const Settings: React.FC = () => {
                         <code className="text-xs text-primary truncate flex-1">{lastInviteLink}</code>
                         <button onClick={() => copyInviteLink()} className="p-1.5 hover:bg-white rounded border border-transparent hover:border-gray-200 transition-all"><Copy size={14} /></button>
                     </div>
-                    <button onClick={() => { setIsInviteModalOpen(false); setLastInviteLink(''); }} className="w-full py-2 bg-primary text-white text-sm rounded hover:bg-black">Fermer</button>
+                    <button onClick={() => { setIsInviteModalOpen(false); setLastInviteLink(''); }} className="ui-btn ui-btn-primary w-full">Fermer</button>
                 </div>
             )}
          </div>
@@ -851,10 +886,10 @@ const Settings: React.FC = () => {
 
       {/* SQL Warning Modal */}
       <Modal isOpen={showSqlModal} onClose={() => setShowSqlModal(false)}>
-         <div className="bg-surface p-6 rounded w-full max-w-xl text-left">
+         <div className="w-full max-w-xl rounded-md bg-surface p-6 text-left">
             <div className="flex items-center gap-3 mb-4 text-orange-600"><AlertTriangle size={24} /><h3 className="text-lg font-bold">Mise à jour requise</h3></div>
             <p className="text-sm text-secondary mb-4">Le schéma de la base de données doit être mis à jour pour supporter les Invitations.</p>
-            <div className="flex justify-end gap-3"><button onClick={() => setShowSqlModal(false)} className="px-4 py-2 text-sm text-secondary hover:bg-gray-50 rounded">Fermer</button></div>
+            <div className="flex justify-end gap-3"><button onClick={() => setShowSqlModal(false)} className="ui-btn ui-btn-secondary">Fermer</button></div>
          </div>
       </Modal>
 

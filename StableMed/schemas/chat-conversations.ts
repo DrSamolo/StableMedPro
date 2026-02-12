@@ -40,7 +40,7 @@ export const MentionParticipantSchema = z
     user_id: z.string().uuid(),
     display_name: z.string().trim().min(1).max(160),
     mention_value: z.string().trim().min(1).max(80).regex(/^[a-z0-9_.-]+$/),
-    avatar_url: z.string().url().nullable(),
+    avatar_url: z.string().trim().min(1).max(2048).nullable(),
   })
   .strict();
 
@@ -49,7 +49,7 @@ export const ChatCandidateSchema = z
     user_id: z.string().uuid(),
     full_name: z.string().nullable(),
     email: z.string().email().nullable(),
-    avatar_url: z.string().url().nullable(),
+    avatar_url: z.string().trim().min(1).max(2048).nullable(),
   })
   .strict();
 

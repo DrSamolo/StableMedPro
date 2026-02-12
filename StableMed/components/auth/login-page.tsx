@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Card } from '@/components/Common';
-import { Lock } from 'lucide-react';
+import { BrandLockup, BrandMark, Card } from '@/components/Common';
+import { Loader2, Lock } from 'lucide-react';
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -20,9 +20,9 @@ const Login: React.FC = () => {
           password,
         });
         if (error) throw error;
+        return;
     } catch (err: any) {
       setError(err.message === 'Invalid login credentials' ? 'Identifiants incorrects' : err.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -31,9 +31,7 @@ const Login: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-            <div className="w-10 h-10 bg-primary rounded-lg mx-auto mb-4 flex items-center justify-center shadow-lg">
-                <div className="w-4 h-4 bg-white rounded-full opacity-90"></div>
-            </div>
+            <BrandLockup compact className="justify-center mb-4" />
             <h1 className="text-2xl font-semibold text-primary tracking-tight">StableMed</h1>
             <p className="text-secondary mt-2 text-sm">CRM médical sécurisé sur invitation</p>
         </div>
@@ -73,8 +71,9 @@ const Login: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-primary text-white text-sm font-medium rounded-md hover:bg-black transition-all shadow-subtle disabled:opacity-70 disabled:cursor-not-allowed mt-2"
+              className="w-full py-2.5 bg-primary text-white text-sm font-medium rounded-md hover:bg-black transition-all shadow-subtle disabled:opacity-70 disabled:cursor-not-allowed mt-2 inline-flex items-center justify-center gap-2"
             >
+              {loading ? <Loader2 size={16} className="animate-spin" /> : null}
               {loading ? 'Connexion...' : 'Se connecter'}
             </button>
           </form>
@@ -89,6 +88,17 @@ const Login: React.FC = () => {
             </p>
         </div>
       </div>
+
+      {loading ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4">
+            <div className="motion-fade-up">
+              <BrandMark className="h-11 w-11 animate-[spin_1.15s_linear_infinite] shadow-card" />
+            </div>
+            <p className="text-sm text-secondary">Ouverture de votre espace...</p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
