@@ -1,5 +1,5 @@
 
-export type ViewState = 'dashboard' | 'leads' | 'pipeline' | 'sales' | 'catalog' | 'settings' | 'register';
+export type ViewState = 'dashboard' | 'tasks' | 'leads' | 'pipeline' | 'sales' | 'catalog' | 'settings' | 'register';
 
 export type UserRole = 'admin' | 'manager' | 'commercial';
 

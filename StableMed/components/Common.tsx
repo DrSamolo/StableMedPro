@@ -90,9 +90,7 @@ export const CountUp: React.FC<{ value: string | number; duration?: number; clas
     let startTime: number | null = null;
     const startValue = 0;
     
-    // If invalid number, just show the original string immediately
     if (isNaN(numericValue)) {
-        setDisplayValue(0); 
         return;
     }
 
@@ -208,8 +206,13 @@ export const SlideOver: React.FC<SlideOverProps> = ({ isOpen, onClose, title, ch
   const [visible, setVisible] = useState(isOpen);
 
   useEffect(() => {
-    if (isOpen) setVisible(true);
-    else setTimeout(() => setVisible(false), 500); // Increased to match new duration
+    if (isOpen) {
+      const showTimer = window.setTimeout(() => setVisible(true), 0);
+      return () => window.clearTimeout(showTimer);
+    }
+
+    const hideTimer = window.setTimeout(() => setVisible(false), 500);
+    return () => window.clearTimeout(hideTimer);
   }, [isOpen]);
 
   if (!visible && !isOpen) return null;

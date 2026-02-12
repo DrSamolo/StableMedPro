@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "master"]
+  pull_request:
+
+jobs:
+  stablemed:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: StableMed
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: StableMed/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Strict verification
+        run: npm run verify:strict
+
+      - name: Build
+        run: npm run build
