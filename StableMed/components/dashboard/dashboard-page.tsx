@@ -246,7 +246,7 @@ const Dashboard: React.FC = () => {
   ];
 
   return (
-    <div className="animate-fade-in pb-10">
+    <div className="ui-page pb-10">
       <SectionTitle title="Vue d'ensemble" subtitle="Performance commerciale et activités récentes" />
 
       <FilterBar />
@@ -290,9 +290,9 @@ const Dashboard: React.FC = () => {
                 <h3 className="text-lg font-medium text-primary mb-6">Activités récentes</h3>
                 <div className="space-y-6">
                     {loading ? (
-                        <div className="text-sm text-gray-400 text-center py-4">Chargement...</div>
+                        <div className="ui-state-box ui-state-loading text-center text-sm">Chargement...</div>
                     ) : activities.length === 0 ? (
-                        <div className="text-sm text-gray-400 text-center py-4">Aucune activité récente.</div>
+                        <div className="ui-state-box ui-state-empty text-center text-sm">Aucune activité récente.</div>
                     ) : (
                         activities.map((item, index) => (
                         <div 
@@ -324,7 +324,7 @@ const Dashboard: React.FC = () => {
               </div>
               
               {topTrainings.length === 0 ? (
-                   <div className="text-center py-8 text-sm text-secondary bg-gray-50 rounded-lg border border-border border-dashed">
+                   <div className="ui-state-box ui-state-empty border-dashed py-8 text-center text-sm">
                        {loading ? 'Calcul des performances...' : 'Pas assez de données de vente pour établir un classement.'}
                    </div>
               ) : (

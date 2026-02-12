@@ -490,37 +490,37 @@ const Settings: React.FC = () => {
   const isManager = profile?.role === 'manager';
 
   return (
-    <div className="animate-fade-in max-w-6xl">
+    <div className="ui-page max-w-6xl">
       <SectionTitle title="Paramètres" subtitle="Gérez vos préférences, votre équipe et les droits d'accès" />
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1">
            <Card noPadding>
                 <nav className="flex flex-col p-2">
-                    <button onClick={() => setActiveTab('profile')} className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded transition-colors ${activeTab === 'profile' ? 'bg-gray-50 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
+                    <button onClick={() => setActiveTab('profile')} className={`ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'profile' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
                         <User size={16} /> Mon Profil
                     </button>
-                    <button onClick={() => setActiveTab('team')} className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded transition-colors ${activeTab === 'team' ? 'bg-gray-50 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
+                    <button onClick={() => setActiveTab('team')} className={`ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'team' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
                         <Users size={16} /> Équipe & Invitations
                     </button>
                     {isAdmin && (
                         <>
-                        <button onClick={() => setActiveTab('roles')} className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded transition-colors ${activeTab === 'roles' ? 'bg-gray-50 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
+                        <button onClick={() => setActiveTab('roles')} className={`ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'roles' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
                             <Shield size={16} /> Rôles & Permissions
                         </button>
-                        <button onClick={() => setActiveTab('api')} className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded transition-colors ${activeTab === 'api' ? 'bg-gray-50 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
+                        <button onClick={() => setActiveTab('api')} className={`ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'api' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
                             <Sliders size={16} /> Intégrations (API)
                         </button>
-                        <button onClick={() => setActiveTab('tests')} className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded transition-colors ${activeTab === 'tests' ? 'bg-gray-50 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
+                        <button onClick={() => setActiveTab('tests')} className={`ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'tests' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
                             <Activity size={16} /> Diagnostic Système
                         </button>
                         </>
                     )}
-                    <button onClick={() => setActiveTab('database')} className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded transition-colors ${activeTab === 'database' ? 'bg-gray-50 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
+                    <button onClick={() => setActiveTab('database')} className={`ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${activeTab === 'database' ? 'bg-gray-100 text-primary' : 'text-secondary hover:text-primary hover:bg-gray-50'}`}>
                         <Database size={16} /> Base de données
                     </button>
                     <div className="h-px bg-border my-2 mx-3"></div>
-                    <button onClick={() => signOut()} className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 rounded transition-colors text-left">
+                    <button onClick={() => signOut()} className="ui-focus flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50">
                         <LogOut size={16} /> Déconnexion
                     </button>
                 </nav>
@@ -607,7 +607,7 @@ const Settings: React.FC = () => {
                     <div className="flex justify-between items-center mb-6">
                         <p className="text-sm text-secondary">Gérez les accès de votre organisation.</p>
                         {(isAdmin || isManager) && (
-                            <button onClick={() => { setIsInviteModalOpen(true); setLastInviteLink(''); }} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded text-sm hover:bg-black transition-colors">
+                            <button onClick={() => { setIsInviteModalOpen(true); setLastInviteLink(''); }} className="ui-btn ui-btn-primary">
                                 <Mail size={16} /> Inviter un membre
                             </button>
                         )}
@@ -638,8 +638,8 @@ const Settings: React.FC = () => {
                     <h4 className="text-xs font-bold text-secondary uppercase mb-3">Membres Actifs</h4>
                     {isLoadingTeam ? <div className="flex justify-center py-8"><Loader2 className="animate-spin text-gray-400" /></div> : (
                       <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm">
-                        <thead className="bg-gray-50 text-secondary border-b border-border font-medium">
+                      <table className="ui-table text-left text-sm">
+                        <thead className="border-b border-border">
                             <tr><th className="px-4 py-3">Utilisateur</th><th className="px-4 py-3">Rôle</th><th className="px-4 py-3">Équipe</th></tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -689,7 +689,7 @@ const Settings: React.FC = () => {
                         </button>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm border-collapse">
+                        <table className="ui-table text-left text-sm border-collapse">
                             <thead>
                                 <tr>
                                     <th className="p-3 border-b border-border bg-gray-50 text-secondary font-medium w-1/3">Permission</th>

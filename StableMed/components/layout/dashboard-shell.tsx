@@ -148,10 +148,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background text-primary font-sans selection:bg-gray-200">
       <PerfObserver />
-      <aside className="fixed left-0 top-0 z-20 flex h-screen w-64 flex-col border-r border-border bg-surface">
+      <aside className="fixed left-0 top-0 z-20 flex h-screen w-64 flex-col border-r border-border bg-surface/95 backdrop-blur-sm">
         <div className="mb-6 flex h-16 items-center px-6">
-          <div className="mr-3 flex h-8 w-8 items-center justify-center rounded bg-primary">
-            <div className="h-4 w-4 rounded-sm bg-white opacity-90" />
+          <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-zinc-900 to-zinc-700 shadow-sm">
+            <div className="h-4 w-4 rounded-sm bg-white/90" />
           </div>
           <span className="text-lg font-semibold tracking-tight text-primary">StableMed</span>
         </div>
@@ -166,9 +166,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "group flex w-full items-center rounded px-3 py-2.5 text-sm font-medium transition-all",
+                  "ui-focus group flex w-full items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
                   isActive
-                    ? "bg-gray-100 text-primary"
+                    ? "border border-zinc-200 bg-white text-primary shadow-sm"
                     : "text-secondary hover:bg-gray-50 hover:text-primary",
                 )}
               >
@@ -194,7 +194,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             onClick={() => {
               void signOut().then(() => router.replace("/login"));
             }}
-            className="flex w-full items-center rounded px-2 py-2 text-sm text-secondary transition-colors hover:bg-rose-50 hover:text-rose-600"
+            className="ui-focus flex w-full items-center rounded-lg px-2 py-2 text-sm text-secondary transition-colors hover:bg-rose-50 hover:text-rose-600"
           >
             <LogOut size={20} strokeWidth={1.5} className="mr-3" />
             <span>Deconnexion</span>
@@ -207,7 +207,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           <NotificationBell />
           <button
             onClick={() => router.push("/dashboard/settings")}
-            className="flex items-center gap-3 transition-opacity hover:opacity-80"
+            className="ui-focus flex items-center gap-3 rounded transition-opacity hover:opacity-80"
           >
             <div className="text-right">
               <p className="text-sm font-medium text-primary">{profileLabel}</p>
@@ -216,7 +216,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <Avatar name={profile?.full_name || profile?.email || "User"} src={profile?.avatar_url} />
           </button>
         </header>
-        <div className="flex-1 overflow-y-auto p-8">{children}</div>
+        <div className="flex-1 overflow-y-auto p-6 lg:p-8">{children}</div>
       </main>
     </div>
   );

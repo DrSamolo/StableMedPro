@@ -131,13 +131,13 @@ export function ChatInput({ participants, isSending, onSend, errorMessage }: Cha
             rows={2}
             disabled={isSending}
             placeholder="Ecrire un message... (utilise @ pour mentionner)"
-            className="min-h-[2.5rem] w-full resize-none rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500 disabled:bg-zinc-100"
+            className="ui-focus min-h-[2.5rem] w-full resize-none rounded-md border border-zinc-300 px-3 py-2 text-sm disabled:bg-zinc-100"
           />
           <button
             type="button"
             onClick={() => void submitDraft()}
             disabled={!draft.trim() || isSending}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-zinc-900 text-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="ui-focus inline-flex h-10 w-10 items-center justify-center rounded-md bg-zinc-900 text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
             aria-label="Envoyer"
           >
             <Send className="h-4 w-4" />

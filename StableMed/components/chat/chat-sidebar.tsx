@@ -38,7 +38,7 @@ export function ChatSidebar({ activeConversationId = null, initialConversations 
   const dmConversations = conversations.filter((summary) => summary.conversation.type === "dm");
 
   return (
-    <aside className="flex h-full min-h-[calc(100vh-9rem)] flex-col rounded-2xl border border-zinc-200 bg-white p-4">
+    <aside className="flex h-full min-h-[calc(100vh-9rem)] flex-col rounded-2xl border border-zinc-200 bg-white p-4 shadow-subtle">
       <div className="mb-2 flex items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-zinc-900">Conversations</h2>
         <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-600">
@@ -131,7 +131,7 @@ export function ChatSidebar({ activeConversationId = null, initialConversations 
         })}
 
         {conversations.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-zinc-200 p-4 text-center text-sm text-zinc-500">
+          <div className="ui-state-box ui-state-empty rounded-lg border-dashed p-4 text-center text-sm">
             <div className="mb-2 inline-flex items-center gap-2">
               <MessageSquare className="h-4 w-4" />
               Aucune conversation

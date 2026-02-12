@@ -48,15 +48,15 @@ export default function ChatIndexPage() {
 
   if (isLoading) {
     return (
-      <section className="flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-2xl border border-zinc-200 bg-white">
-        <p className="text-sm text-zinc-500">Chargement des conversations...</p>
+      <section className="ui-state-box ui-state-loading flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-2xl text-sm">
+        <p>Chargement des conversations...</p>
       </section>
     );
   }
 
   return (
-    <section className="flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-2xl border border-zinc-200 bg-white">
-      <p className="text-sm text-zinc-500">Aucune conversation disponible.</p>
+    <section className="ui-state-box ui-state-empty flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-2xl text-sm">
+      <p>Aucune conversation disponible.</p>
     </section>
   );
 }

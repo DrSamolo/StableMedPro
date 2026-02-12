@@ -366,10 +366,10 @@ export function TasksDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fafafa] px-4 py-6 md:px-8">
+    <div className="ui-page px-4 py-6 md:px-6">
       <DailyBriefing userName={typeof userName === "string" ? userName : null} />
 
-      <div className="mx-auto max-w-6xl">
+      <div className="ui-page-shell">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm uppercase tracking-[0.2em] text-zinc-400">Workspace</p>
@@ -382,17 +382,17 @@ export function TasksDashboard() {
               setEditingTask(null);
               setIsTaskModalOpen(true);
             }}
-            className="inline-flex items-center rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800"
+            className="ui-btn ui-btn-primary"
           >
             <Plus size={14} className="mr-2" />
             New task
           </button>
         </div>
 
-        <div className="mb-4 inline-flex rounded-xl border border-zinc-200 bg-white p-1">
+        <div className="mb-4 inline-flex rounded-xl border border-zinc-200 bg-white p-1 shadow-sm">
           <button
             className={cn(
-              "rounded-lg px-3 py-1.5 text-sm font-medium transition",
+              "ui-focus rounded-lg px-3 py-1.5 text-sm font-medium transition",
               viewMode === "list" ? "bg-zinc-950 text-white" : "text-zinc-600 hover:bg-zinc-100",
             )}
             onClick={() => setViewMode("list")}
@@ -401,7 +401,7 @@ export function TasksDashboard() {
           </button>
           <button
             className={cn(
-              "rounded-lg px-3 py-1.5 text-sm font-medium transition",
+              "ui-focus rounded-lg px-3 py-1.5 text-sm font-medium transition",
               viewMode === "calendar" ? "bg-zinc-950 text-white" : "text-zinc-600 hover:bg-zinc-100",
             )}
             onClick={() => setViewMode("calendar")}
@@ -411,13 +411,13 @@ export function TasksDashboard() {
         </div>
 
         {tasksQuery.isLoading ? (
-          <div className="rounded-xl border border-zinc-200 bg-white p-10 text-center text-sm text-zinc-500">
-            Loading tasks...
+          <div className="ui-state-box ui-state-loading p-10 text-center text-sm">
+            Chargement des taches...
           </div>
         ) : null}
 
         {tasksQuery.isError ? (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+          <div className="ui-state-box ui-state-error text-sm">
             Impossible de charger les taches.
             <div className="mt-1 text-xs text-rose-600/90">{taskErrorMessage}</div>
           </div>
@@ -434,8 +434,8 @@ export function TasksDashboard() {
                 <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-zinc-500">{title}</h2>
                 <div className="space-y-2">
                   {tasks.length === 0 ? (
-                    <div className="rounded-xl border border-dashed border-zinc-200 bg-white px-4 py-5 text-sm text-zinc-400">
-                      No tasks
+                    <div className="ui-state-box ui-state-empty border-dashed px-4 py-5 text-sm">
+                      Aucune tache
                     </div>
                   ) : (
                     tasks.map((task) => (
@@ -534,7 +534,7 @@ export function TasksDashboard() {
       >
         <div className="space-y-2">
           {!dayPreview || dayPreview.tasks.length === 0 ? (
-            <p className="text-sm text-zinc-500">No tasks for this day.</p>
+            <p className="text-sm text-zinc-500">Aucune tache pour ce jour.</p>
           ) : (
             dayPreview.tasks.map((task) => (
               <button

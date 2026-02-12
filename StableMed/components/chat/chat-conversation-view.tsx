@@ -74,7 +74,7 @@ export function ChatConversationView({
   }
 
   return (
-    <section className="flex h-full min-h-[calc(100vh-9rem)] flex-col rounded-2xl border border-zinc-200 bg-white">
+    <section className="flex h-full min-h-[calc(100vh-9rem)] flex-col rounded-2xl border border-zinc-200 bg-white shadow-subtle">
       <header className="border-b border-zinc-200 px-4 py-3">
         <div className="mb-2 flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-zinc-900">{title}</h2>
@@ -122,7 +122,7 @@ export function ChatConversationView({
         ))}
 
         {!messagesQuery.isLoading && sortedMessages.length === 0 ? (
-          <div className="flex h-full min-h-[200px] items-center justify-center text-sm text-zinc-500">
+          <div className="ui-state-box ui-state-empty flex h-full min-h-[200px] items-center justify-center text-sm">
             <div className="inline-flex items-center gap-2">
               <MessageSquare className="h-4 w-4" />
               Aucun message.

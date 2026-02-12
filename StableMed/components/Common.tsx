@@ -13,7 +13,7 @@ export const Card: React.FC<CardProps> = ({ children, className = '', noPadding 
   const interactionClass = hoverable || className.includes('cursor-pointer') ? 'micro-interaction' : '';
 
   return (
-    <div className={`bg-surface border border-border rounded-xl shadow-sm transition-all duration-300 ${interactionClass} ${className}`}>
+    <div className={`bg-surface border border-border rounded-xl shadow-subtle transition-all duration-200 ${interactionClass} ${className}`}>
       <div className={noPadding ? '' : 'p-6'}>
         {children}
       </div>
@@ -44,10 +44,10 @@ export const Badge: React.FC<BadgeProps> = ({ children, variant = 'neutral', cla
 };
 
 export const SectionTitle: React.FC<{ title: string; subtitle?: string; action?: React.ReactNode }> = ({ title, subtitle, action }) => (
-  <div className="mb-8 flex justify-between items-end animate-enter delay-0">
+  <div className="mb-7 flex flex-wrap items-end justify-between gap-3 animate-enter delay-0">
     <div>
       <h1 className="text-2xl font-semibold text-primary tracking-tight">{title}</h1>
-      {subtitle && <p className="text-secondary mt-1 font-light text-sm">{subtitle}</p>}
+      {subtitle && <p className="mt-1 text-sm text-secondary">{subtitle}</p>}
     </div>
     {action && <div>{action}</div>}
   </div>
@@ -161,7 +161,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between gap-3 px-3 py-2 bg-white border rounded-lg text-sm transition-all duration-200 shadow-sm hover:border-gray-300 hover:bg-gray-50/50 ${isOpen ? 'border-gray-400 ring-2 ring-gray-100' : 'border-gray-200'} `}
+        className={`ui-focus w-full flex items-center justify-between gap-3 rounded-lg border bg-white px-3 py-2 text-sm shadow-sm transition-all duration-200 hover:border-gray-300 hover:bg-gray-50/50 ${isOpen ? 'border-gray-400 ring-2 ring-gray-100' : 'border-gray-200'} `}
       >
         <div className="flex items-center gap-2.5 truncate">
           {Icon && <Icon size={15} className={`shrink-0 ${isSelected ? 'text-primary' : 'text-gray-400'}`} />}
@@ -182,7 +182,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
                   onChange(option.value);
                   setIsOpen(false);
                 }}
-                className={`w-full text-left px-3 py-2 text-[13px] flex items-center justify-between transition-colors ${value === option.value ? 'bg-gray-50 text-primary font-medium' : 'text-secondary hover:bg-gray-50 hover:text-primary'}`}
+                className={`ui-focus flex w-full items-center justify-between px-3 py-2 text-left text-[13px] transition-colors ${value === option.value ? 'bg-gray-50 text-primary font-medium' : 'text-secondary hover:bg-gray-50 hover:text-primary'}`}
               >
                 <span className="truncate">{option.label}</span>
                 {value === option.value && <Check size={14} className="text-black" />}
@@ -229,12 +229,12 @@ export const SlideOver: React.FC<SlideOverProps> = ({ isOpen, onClose, title, ch
         {/* Panel Slide In - Using 'ease-sweet' custom bezier */}
         <div className={`pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10 transform transition-transform ease-sweet duration-500 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="pointer-events-auto w-screen max-w-md">
-            <div className="flex h-full flex-col overflow-y-scroll bg-surface shadow-2xl border-l border-border">
+            <div className="flex h-full flex-col overflow-y-scroll border-l border-border bg-surface shadow-2xl">
               <div className="px-6 py-6 border-b border-border bg-gray-50/50 flex items-center justify-between">
                 <h2 className="text-lg font-medium text-primary">{title}</h2>
                 <button 
                   type="button" 
-                  className="rounded text-gray-400 hover:text-gray-500 focus:outline-none hover:bg-gray-100 p-1 transition-colors"
+                  className="ui-focus rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-500"
                   onClick={onClose}
                 >
                   <X size={20} strokeWidth={1.5} />
@@ -270,7 +270,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
         ></div>
         
         {/* Content with Zoom/Fade Entry */}
-        <div className="relative transform overflow-hidden rounded-xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-sm border border-gray-100 animate-enter">
+        <div className="relative transform overflow-hidden rounded-xl border border-gray-100 bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-sm animate-enter">
             {children}
         </div>
       </div>

@@ -587,15 +587,15 @@ const Leads: React.FC = () => {
   };
 
   return (
-    <div className="animate-fade-in relative">
+    <div className="ui-page relative">
       <div className="flex justify-between items-end mb-8">
         <SectionTitle title="Leads & Prospects" subtitle="Base de données qualifiée" />
-        <div className="flex gap-3 mb-8">
+        <div className="mb-8 flex gap-3">
             <input type="file" ref={fileInputRef} accept=".csv" className="hidden" onChange={handleImportCSV} />
-            <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-lg text-sm text-secondary hover:text-primary hover:border-gray-300 transition-colors shadow-sm">
+            <button onClick={() => fileInputRef.current?.click()} disabled={isImporting} className="ui-btn ui-btn-secondary">
                 {isImporting ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Importer CSV
             </button>
-            <button onClick={() => setIsCreateModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg text-sm hover:bg-black transition-colors shadow-sm">
+            <button onClick={() => setIsCreateModalOpen(true)} className="ui-btn ui-btn-primary">
                 <Plus size={16} /> Ajouter
             </button>
         </div>
@@ -633,7 +633,7 @@ const Leads: React.FC = () => {
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Rechercher par nom..." 
-                    className="w-full bg-white border border-gray-200 text-primary text-sm rounded-lg py-2 pl-10 pr-4 outline-none focus:ring-2 focus:ring-gray-100 focus:border-gray-300 transition-all shadow-sm placeholder-gray-400"
+                    className="ui-input pl-10 pr-4"
                 />
            </div>
            
@@ -647,12 +647,12 @@ const Leads: React.FC = () => {
                         value={selectCount}
                         onChange={(e) => setSelectCount(e.target.value)}
                         placeholder="Nb" 
-                        className="w-16 px-2 py-2 text-xs border border-gray-200 rounded-l-lg outline-none focus:ring-1 focus:ring-primary focus:border-primary text-center"
+                        className="ui-input w-16 rounded-l-lg rounded-r-none px-2 py-2 text-center text-xs"
                         onKeyDown={(e) => e.key === 'Enter' && handleQuickSelect()}
                    />
                    <button 
                         onClick={handleQuickSelect}
-                        className="px-3 py-2 bg-white border border-l-0 border-gray-200 rounded-r-lg text-xs font-medium text-primary hover:bg-gray-50 transition-colors whitespace-nowrap flex-1 sm:flex-none"
+                        className="ui-btn ui-btn-secondary flex-1 rounded-l-none border-l-0 px-3 py-2 text-xs sm:flex-none"
                    >
                        Sélectionner
                    </button>
@@ -661,20 +661,24 @@ const Leads: React.FC = () => {
         </div>
         
         {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 text-secondary">
+            <div className="ui-state-box ui-state-loading m-4 flex flex-col items-center justify-center py-20 text-center">
                 <Loader2 className="w-8 h-8 animate-spin mb-2" />
                 <p className="text-sm">Chargement...</p>
             </div>
+        ) : schemaError ? (
+            <div className="ui-state-box ui-state-error m-4 text-sm">
+                Erreur de compatibilite schema: impossible de charger les leads.
+            </div>
         ) : filteredLeads.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-secondary">
+            <div className="ui-state-box ui-state-empty m-4 flex flex-col items-center justify-center py-20 text-center">
                 <Users size={24} className="text-gray-400 mb-4" />
                 <h3 className="text-lg font-medium text-primary mb-1">Aucun lead trouvé</h3>
                 <p className="text-xs text-gray-400">Essayez de modifier vos filtres.</p>
             </div>
         ) : (
             <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 text-secondary border-b border-border font-medium">
+            <table className="ui-table text-left text-sm">
+            <thead className="border-b border-border">
                 <tr>
                 <th className="px-6 py-4 font-medium w-12">
                      <div 

@@ -12,7 +12,7 @@ export default async function ChatLayout({ children, params }: ChatLayoutProps) 
   const activeConversationId = resolvedParams?.conversationId ?? null;
 
   return (
-    <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 bg-zinc-50 p-4 lg:grid-cols-[320px_1fr]">
+    <div className="ui-page ui-page-shell grid grid-cols-1 gap-4 p-4 lg:grid-cols-[320px_1fr]">
       <ChatSidebar activeConversationId={activeConversationId} />
       {children}
     </div>

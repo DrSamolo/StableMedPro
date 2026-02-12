@@ -19,8 +19,8 @@ export const FilterBar: React.FC = () => {
   if (profile?.role === 'commercial') return null;
 
   return (
-    <div className="flex items-center gap-4 mb-6 bg-white p-3 rounded-lg border border-border shadow-sm w-fit">
-      <div className="flex items-center gap-2 text-sm font-medium text-secondary border-r border-border pr-4">
+    <div className="mb-6 flex w-fit flex-wrap items-center gap-3 rounded-xl border border-border bg-white px-3 py-2.5 shadow-sm">
+      <div className="flex items-center gap-2 border-r border-border pr-3 text-sm font-medium text-secondary">
         <Filter size={16} />
         <span>Vue :</span>
       </div>
@@ -33,7 +33,7 @@ export const FilterBar: React.FC = () => {
                 <select 
                     value={selectedTeamId} 
                     onChange={(e) => setTeamFilter(e.target.value)}
-                    className="bg-transparent text-sm font-medium text-primary outline-none cursor-pointer min-w-[120px]"
+                    className="ui-focus cursor-pointer rounded-md border border-transparent bg-transparent px-1 py-1 text-sm font-medium text-primary min-w-[120px]"
                     disabled={loadingFilters}
                 >
                     <option value="all">Toutes les équipes</option>
@@ -46,13 +46,13 @@ export const FilterBar: React.FC = () => {
       )}
 
       {/* User Filter - For Admin & Manager */}
-      <div className="relative group border-l border-border pl-4">
+      <div className="relative group border-l border-border pl-3">
         <div className="flex items-center gap-2">
              <User size={14} className="text-gray-400" />
              <select 
                 value={selectedUserId} 
                 onChange={(e) => setUserFilter(e.target.value)}
-                className="bg-transparent text-sm font-medium text-primary outline-none cursor-pointer min-w-[150px]"
+                className="ui-focus cursor-pointer rounded-md border border-transparent bg-transparent px-1 py-1 text-sm font-medium text-primary min-w-[150px]"
                 disabled={loadingFilters}
             >
                 <option value="all">Tous les commerciaux</option>

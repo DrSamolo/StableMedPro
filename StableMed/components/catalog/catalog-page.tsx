@@ -362,7 +362,7 @@ const Catalog: React.FC = () => {
   };
 
   return (
-    <div className="animate-fade-in">
+    <div className="ui-page">
        <SectionTitle 
         title="Catalogue de Formations" 
         subtitle="Bibliothèque de contenus certifiés DPC"
@@ -371,7 +371,7 @@ const Catalog: React.FC = () => {
                 {canManageCatalog && (
                   <button 
                       onClick={() => setIsModalOpen(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded text-sm hover:bg-black transition-colors shadow-sm micro-interaction"
+                      className="ui-btn ui-btn-primary micro-interaction"
                   >
                       <Plus size={16} /> Nouvelle Formation
                   </button>
@@ -437,9 +437,14 @@ const Catalog: React.FC = () => {
 
        {/* Catalog Grid */}
        {loading ? (
-           <div className="flex justify-center py-20"><Loader2 className="animate-spin text-gray-400" /></div>
+           <div className="ui-state-box ui-state-loading flex justify-center py-20 text-sm">
+             <div className="inline-flex items-center gap-2">
+               <Loader2 className="animate-spin text-gray-400" />
+               Chargement du catalogue...
+             </div>
+           </div>
        ) : filteredTrainings.length === 0 ? (
-           <div className="flex flex-col items-center justify-center py-24 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+           <div className="ui-state-box ui-state-empty flex flex-col items-center justify-center border-dashed py-24">
                <Search size={32} className="text-gray-300 mb-3" />
                <p className="text-secondary font-medium mb-1">Aucun résultat trouvé.</p>
                <p className="text-xs text-gray-400">Essayez de modifier votre recherche ou vos filtres.</p>

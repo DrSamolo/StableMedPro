@@ -39,8 +39,8 @@ export default function DashboardPage() {
 
   if (!Dashboard) {
     return (
-      <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-zinc-200 bg-white">
-        <p className="text-sm text-zinc-500">Chargement du dashboard...</p>
+      <div className="ui-state-box ui-state-loading flex min-h-[280px] items-center justify-center text-sm">
+        <p>Chargement du dashboard...</p>
       </div>
     );
   }

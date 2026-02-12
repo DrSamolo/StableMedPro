@@ -597,10 +597,19 @@ const Pipeline: React.FC = () => {
     </div>
   );
 
-  if (loading) return <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin text-gray-400" /></div>;
+  if (loading) {
+    return (
+      <div className="ui-state-box ui-state-loading flex h-full items-center justify-center p-10 text-sm">
+        <div className="inline-flex items-center gap-2">
+          <Loader2 className="animate-spin text-gray-400" />
+          Chargement du pipeline...
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="animate-fade-in h-full flex flex-col">
+    <div className="ui-page h-full flex flex-col">
       <div className="flex justify-between items-center mb-6">
          <SectionTitle title="Pipeline" subtitle="Gérez vos opportunités en cours" />
          <div className="flex items-center gap-4">
@@ -612,14 +621,14 @@ const Pipeline: React.FC = () => {
                     setIsWonModalOpen(true);
                     setDealToWin(null); 
                 }}
-                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-primary rounded-md text-sm hover:bg-gray-50 transition-colors shadow-sm micro-interaction"
+                className="ui-btn ui-btn-secondary micro-interaction hidden sm:flex"
             >
                 <Award size={16} className="text-emerald-500" /> Ajouter une vente
             </button>
 
             <button 
                 onClick={() => setIsModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-md text-sm hover:bg-black transition-colors shadow-sm micro-interaction"
+                className="ui-btn ui-btn-primary micro-interaction"
             >
                 <Plus size={16} /> <span className="hidden sm:inline">Nouvelle opportunité</span>
             </button>
@@ -629,7 +638,7 @@ const Pipeline: React.FC = () => {
       <FilterBar />
       
       {errorState ? (
-          <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-lg border border-red-100 p-8 text-center">
+          <div className="ui-state-box ui-state-error flex h-64 flex-col items-center justify-center p-8 text-center">
               <AlertCircle className="text-red-400 mb-3" size={32} />
               <h3 className="text-primary font-medium mb-1">Erreur de chargement</h3>
               <p className="text-sm text-secondary mb-4">La structure de la base de données ne correspond pas à la version actuelle de l'application.</p>

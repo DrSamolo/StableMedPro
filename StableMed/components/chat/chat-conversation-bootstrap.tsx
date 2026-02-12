@@ -212,16 +212,16 @@ export function ChatConversationBootstrap({ conversationId }: ChatConversationBo
 
   if (isLoading) {
     return (
-      <section className="flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-2xl border border-zinc-200 bg-white">
-        <p className="text-sm text-zinc-500">Chargement de la conversation...</p>
+      <section className="ui-state-box ui-state-loading flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-2xl text-sm">
+        <p>Chargement de la conversation...</p>
       </section>
     );
   }
 
   if (!actor || error) {
     return (
-      <section className="flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-2xl border border-zinc-200 bg-white">
-        <p className="text-sm text-rose-600">{error ?? "Impossible de charger la conversation."}</p>
+      <section className="ui-state-box ui-state-error flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-2xl text-sm">
+        <p>{error ?? "Impossible de charger la conversation."}</p>
       </section>
     );
   }
