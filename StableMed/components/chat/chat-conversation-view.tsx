@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { MessageSquare, Trash2 } from "lucide-react";
+import { Loader2, MessageSquare, Trash2, UserPlus, X } from "lucide-react";
 
 import { Avatar, Modal } from "@/components/Common";
 import { ChatInput } from "@/components/chat/chat-input";
@@ -12,7 +12,7 @@ import { useChat } from "@/hooks/use-chat";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils/cn";
 import type { ChatActor } from "@/schemas/chat";
-import type { MentionParticipant, Message } from "@/schemas/chat-conversations";
+import { ChatCandidateSchema, type ChatCandidate, type MentionParticipant, type Message } from "@/schemas/chat-conversations";
 
 type ChatConversationViewProps = {
   actor: ChatActor;
@@ -20,7 +20,14 @@ type ChatConversationViewProps = {
   initialMessages: Message[];
   mentionParticipants: MentionParticipant[];
   title: string;
+  conversationType: "dm" | "group";
   canDelete: boolean;
+  canManageMembers: boolean;
+};
+
+type ModalMember = {
+  user_id: string;
+  display_name: string;
 };
 
 function formatTime(iso: string) {
@@ -35,7 +42,9 @@ export function ChatConversationView({
   initialMessages,
   mentionParticipants,
   title,
+  conversationType,
   canDelete,
+  canManageMembers,
 }: ChatConversationViewProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -47,6 +56,15 @@ export function ChatConversationView({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, startDeleteTransition] = useTransition();
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isAddMembersOpen, setIsAddMembersOpen] = useState(false);
+  const [membersSearch, setMembersSearch] = useState("");
+  const [candidateMembers, setCandidateMembers] = useState<ChatCandidate[]>([]);
+  const [modalMembers, setModalMembers] = useState<ModalMember[]>([]);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([]);
+  const [addMembersError, setAddMembersError] = useState<string | null>(null);
+  const [removeMemberError, setRemoveMemberError] = useState<string | null>(null);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [isAddingMembers, startAddMembersTransition] = useTransition();
   const messagesScrollerRef = useRef<HTMLDivElement | null>(null);
   const messagesBottomRef = useRef<HTMLDivElement | null>(null);
   const previousMessagesCountRef = useRef(0);
@@ -62,6 +80,37 @@ export function ChatConversationView({
     });
     return map;
   }, [mentionParticipants]);
+  const participantIds = useMemo(
+    () => new Set(mentionParticipants.map((participant) => participant.user_id)),
+    [mentionParticipants],
+  );
+  const currentMembers = useMemo(
+    () =>
+      mentionParticipants.filter(
+        (participant) => participant.mention_value !== "all" && participant.mention_value !== "equipe",
+      ),
+    [mentionParticipants],
+  );
+  const effectiveMembers = useMemo(() => {
+    if (!isAddMembersOpen) {
+      return currentMembers.map((member) => ({
+        user_id: member.user_id,
+        display_name: member.display_name,
+      }));
+    }
+    return modalMembers;
+  }, [currentMembers, isAddMembersOpen, modalMembers]);
+  const filteredCandidateMembers = useMemo(() => {
+    const keyword = membersSearch.trim().toLowerCase();
+    const effectiveMemberIds = new Set(effectiveMembers.map((member) => member.user_id));
+    return candidateMembers
+      .filter((candidate) => !effectiveMemberIds.has(candidate.user_id))
+      .filter((candidate) => {
+        if (!keyword) return true;
+        const label = candidate.full_name?.trim() || candidate.email || candidate.user_id;
+        return label.toLowerCase().includes(keyword) || (candidate.email ?? "").toLowerCase().includes(keyword);
+      });
+  }, [candidateMembers, effectiveMembers, membersSearch]);
 
   useEffect(() => {
     previousMessagesCountRef.current = 0;
@@ -108,24 +157,155 @@ export function ChatConversationView({
     });
   }
 
+  function closeAddMembersModal() {
+    setIsAddMembersOpen(false);
+    setMembersSearch("");
+    setSelectedMemberIds([]);
+    setAddMembersError(null);
+    setRemoveMemberError(null);
+    setRemovingMemberId(null);
+    setModalMembers([]);
+  }
+
+  async function openAddMembersModal() {
+    setAddMembersError(null);
+    setRemoveMemberError(null);
+    setModalMembers(
+      currentMembers.map((member) => ({
+        user_id: member.user_id,
+        display_name: member.display_name,
+      })),
+    );
+    setIsAddMembersOpen(true);
+    const { data, error } = await supabase.rpc("get_chat_candidates");
+    if (error) {
+      setAddMembersError(error.message);
+      return;
+    }
+
+    const parsed = (data ?? []).map((row: unknown) => ChatCandidateSchema.parse(row));
+    setCandidateMembers(parsed);
+  }
+
+  function submitAddMembers() {
+    if (selectedMemberIds.length === 0) {
+      setAddMembersError("Selectionnez au moins un membre.");
+      return;
+    }
+
+    setAddMembersError(null);
+    startAddMembersTransition(async () => {
+      const { error } = await supabase.rpc("add_participants_to_group_conversation", {
+        p_conversation_id: conversationId,
+        p_participant_ids: selectedMemberIds,
+      });
+
+      if (error) {
+        const functionMissing =
+          error.message.includes("Could not find the function public.add_participants_to_group_conversation") ||
+          error.message.includes("schema cache");
+
+        if (!functionMissing) {
+          setAddMembersError(error.message);
+          return;
+        }
+
+        const rows = selectedMemberIds.map((userId) => ({
+          conversation_id: conversationId,
+          user_id: userId,
+        }));
+        const { error: fallbackError } = await supabase
+          .from("conversation_participants")
+          .upsert(rows, { onConflict: "conversation_id,user_id", ignoreDuplicates: true });
+
+        if (fallbackError) {
+          setAddMembersError(fallbackError.message);
+          return;
+        }
+      }
+
+      setModalMembers((previous) => {
+        const map = new Map(previous.map((member) => [member.user_id, member]));
+        selectedMemberIds.forEach((id) => {
+          const candidate = candidateMembers.find((item) => item.user_id === id);
+          if (!candidate) return;
+          map.set(id, {
+            user_id: id,
+            display_name: candidate.full_name?.trim() || candidate.email || id.slice(0, 8),
+          });
+        });
+        return Array.from(map.values());
+      });
+      setSelectedMemberIds([]);
+      setMembersSearch("");
+      setAddMembersError(null);
+      await queryClient.invalidateQueries({ queryKey: ["chat-v2-conversations"] });
+      await queryClient.invalidateQueries({ queryKey: ["chat-v2-messages"] });
+      router.refresh();
+    });
+  }
+
+  function removeMember(userId: string) {
+    if (userId === actor.id) {
+      setRemoveMemberError("Impossible de vous retirer de ce groupe depuis cette action.");
+      return;
+    }
+
+    setRemoveMemberError(null);
+    setRemovingMemberId(userId);
+
+    startAddMembersTransition(async () => {
+      const { error } = await supabase
+        .from("conversation_participants")
+        .delete()
+        .eq("conversation_id", conversationId)
+        .eq("user_id", userId);
+
+      if (error) {
+        setRemoveMemberError(error.message);
+        setRemovingMemberId(null);
+        return;
+      }
+
+      setSelectedMemberIds((previous) => previous.filter((id) => id !== userId));
+      setModalMembers((previous) => previous.filter((member) => member.user_id !== userId));
+      setRemovingMemberId(null);
+      await queryClient.invalidateQueries({ queryKey: ["chat-v2-conversations"] });
+      await queryClient.invalidateQueries({ queryKey: ["chat-v2-messages"] });
+      router.refresh();
+    });
+  }
+
   return (
     <section className="flex h-[calc(100dvh-8.5rem)] max-h-[calc(100dvh-8.5rem)] flex-col overflow-hidden rounded-md border border-zinc-200 bg-white shadow-subtle motion-fade-up md:h-[calc(100vh-9rem)] md:max-h-[calc(100vh-9rem)]">
       <header className="border-b border-zinc-200 bg-white px-5 py-3.5 motion-fade-up">
         <div className="mb-2 flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold leading-6 text-zinc-900">{title}</h2>
-          {canDelete ? (
-            <button
-              type="button"
-              onClick={() => setIsDeleteConfirmOpen(true)}
-              disabled={isDeleting}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-60 motion-soft-hover motion-soft-press"
-              aria-label="Supprimer la conversation"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
-          ) : (
-            <span className="text-[11px] text-zinc-500">Suppression reservee au createur/admin</span>
-          )}
+          <div className="flex items-center gap-1">
+            {conversationType === "group" && canManageMembers ? (
+              <button
+                type="button"
+                onClick={() => void openAddMembersModal()}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 motion-soft-hover motion-soft-press"
+                aria-label="Ajouter des membres"
+              >
+                <UserPlus className="h-4 w-4" />
+              </button>
+            ) : null}
+            {canDelete ? (
+              <button
+                type="button"
+                onClick={() => setIsDeleteConfirmOpen(true)}
+                disabled={isDeleting}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-60 motion-soft-hover motion-soft-press"
+                aria-label="Supprimer la conversation"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            ) : (
+              <span className="text-[11px] text-zinc-500">Suppression reservee au createur/admin</span>
+            )}
+          </div>
         </div>
         {deleteError ? <p className="text-xs text-rose-600">{deleteError}</p> : null}
       </header>
@@ -226,6 +406,124 @@ export function ChatConversationView({
               disabled={isDeleting}
             >
               Supprimer
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isAddMembersOpen} onClose={closeAddMembersModal}>
+        <div className="w-full max-w-lg rounded-md bg-surface p-6">
+          <div className="mb-5 flex items-center justify-between border-b border-zinc-200 pb-3">
+            <div>
+              <h3 className="text-lg font-medium text-primary">Ajouter des membres</h3>
+              <p className="mt-1 text-sm text-secondary">Selectionnez les utilisateurs a ajouter dans ce groupe.</p>
+            </div>
+            <button
+              type="button"
+              onClick={closeAddMembersModal}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-md text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 motion-soft-hover motion-soft-press"
+              aria-label="Fermer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          <input
+            value={membersSearch}
+            onChange={(event) => setMembersSearch(event.target.value)}
+            placeholder="Rechercher un membre..."
+            disabled={isAddingMembers}
+            className="ui-input mb-3 h-9 px-3"
+          />
+
+          <div className="mb-3 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">
+            <p className="text-[11px] font-medium uppercase tracking-[0.06em] text-zinc-500">
+              Membres actuels ({effectiveMembers.length})
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {effectiveMembers.map((participant) => (
+                <button
+                  key={participant.user_id}
+                  type="button"
+                  onClick={() => removeMember(participant.user_id)}
+                  disabled={
+                    !canManageMembers ||
+                    isAddingMembers ||
+                    participant.user_id === actor.id ||
+                    removingMemberId === participant.user_id
+                  }
+                  className={cn(
+                    "group inline-flex items-center gap-1 rounded-full bg-zinc-200 px-2 py-0.5 text-[11px] text-zinc-700 transition",
+                    canManageMembers ? "hover:bg-zinc-300" : "",
+                      !canManageMembers || participant.user_id === actor.id
+                        ? "cursor-default"
+                        : "cursor-pointer motion-soft-hover motion-soft-press",
+                  )}
+                >
+                  {participant.display_name}
+                  {canManageMembers && participant.user_id !== actor.id ? (
+                    <span className="text-zinc-500 transition group-hover:text-zinc-700">
+                      {removingMemberId === participant.user_id ? <Loader2 className="h-3 w-3 animate-spin" /> : "×"}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+              {effectiveMembers.length === 0 ? <span className="text-xs text-zinc-500">Aucun membre.</span> : null}
+            </div>
+          </div>
+
+          <div className="max-h-64 space-y-1 overflow-y-auto rounded-md border border-zinc-200 bg-zinc-50 p-2">
+            {filteredCandidateMembers.map((candidate) => {
+              const checked = selectedMemberIds.includes(candidate.user_id);
+              const label = candidate.full_name?.trim() || candidate.email || candidate.user_id.slice(0, 8);
+              return (
+                <label
+                  key={candidate.user_id}
+                  className="flex cursor-pointer items-center justify-between rounded-md border border-transparent bg-white px-2 py-1.5 text-xs hover:border-zinc-200 hover:bg-zinc-100"
+                >
+                  <span className="truncate text-zinc-700">{label}</span>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(event) => {
+                      setSelectedMemberIds((previous) => {
+                        if (event.target.checked) {
+                          if (previous.includes(candidate.user_id)) return previous;
+                          return [...previous, candidate.user_id];
+                        }
+                        return previous.filter((id) => id !== candidate.user_id);
+                      });
+                    }}
+                    className="h-4 w-4 accent-zinc-700"
+                  />
+                </label>
+              );
+            })}
+            {filteredCandidateMembers.length === 0 ? (
+              <p className="px-2 py-2 text-xs text-zinc-500">Aucun utilisateur disponible.</p>
+            ) : null}
+          </div>
+
+          {addMembersError ? <p className="mt-3 text-xs text-rose-600">{addMembersError}</p> : null}
+          {removeMemberError ? <p className="mt-2 text-xs text-rose-600">{removeMemberError}</p> : null}
+
+          <div className="mt-4 flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={closeAddMembersModal}
+              className="ui-btn ui-btn-secondary"
+              disabled={isAddingMembers}
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={submitAddMembers}
+              className="ui-btn ui-btn-primary"
+              disabled={isAddingMembers || selectedMemberIds.length === 0}
+            >
+              {isAddingMembers ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Ajouter
             </button>
           </div>
         </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Card, CountUp, PageHeader } from '@/components/Common';
+import { Card, CountUp, PageHeader, SectionLoader } from '@/components/Common';
 import { FilterBar } from '@/components/FilterBar';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { ArrowUpRight, ArrowDownRight, Activity, DollarSign, Users, TrendingUp, Briefcase, Award, Phone } from 'lucide-react';
@@ -44,7 +44,7 @@ const StatCard: React.FC<{ kpi: KpiData; icon: React.ReactNode; index: number }>
 );
 
 const Dashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { selectedTeamId, selectedUserId, users } = useData(); // Use Global Filters
   const [loading, setLoading] = useState(true);
   useSectionPerf('dashboard', loading);
@@ -59,6 +59,7 @@ const Dashboard: React.FC = () => {
   const [chartData, setChartData] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [topTrainings, setTopTrainings] = useState<any[]>([]);
+  const [topCommercials, setTopCommercials] = useState<any[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -74,12 +75,14 @@ const Dashboard: React.FC = () => {
             chartData: any[];
             activities: any[];
             topTrainings: any[];
+            topCommercials: any[];
         }>(cacheKey, DASHBOARD_CACHE_TTL_MS);
         if (cached) {
             setKpis(cached.kpis);
             setChartData(cached.chartData);
             setActivities(cached.activities);
             setTopTrainings(cached.topTrainings);
+            setTopCommercials(cached.topCommercials);
             setLoading(false);
         }
 
@@ -123,6 +126,7 @@ const Dashboard: React.FC = () => {
 
         const filteredDeals = deals.filter(filterData);
         const filteredLeads = leads.filter(filterData);
+        const usersById = new Map(users.map((u) => [u.id, u]));
 
         // --- Calculate KPIs ---
         const wonDeals = filteredDeals.filter(d => d.stage === 'won');
@@ -153,14 +157,36 @@ const Dashboard: React.FC = () => {
         });
         setChartData(Array.from(chartMap).map(([name, value]) => ({ name, value })));
 
+        // --- Top Commercials (Filtered Scope) ---
+        const commercialStats: Record<string, { name: string; count: number; revenue: number }> = {};
+        filteredDeals.forEach((deal) => {
+          if (deal.stage !== 'won' || !deal.owner_id) return;
+          const owner = usersById.get(deal.owner_id);
+          const ownerName = owner?.full_name?.trim() || owner?.email?.split('@')[0] || 'Commercial';
+
+          if (!commercialStats[deal.owner_id]) {
+            commercialStats[deal.owner_id] = { name: ownerName, count: 0, revenue: 0 };
+          }
+
+          commercialStats[deal.owner_id].count += 1;
+          commercialStats[deal.owner_id].revenue += deal.amount || 0;
+        });
+        const sortedCommercials = Object.values(commercialStats)
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 5);
+        setTopCommercials(sortedCommercials);
+
         // --- Recent Activity (Filtered) ---
-        const recentLeads = filteredLeads.slice(0, 5).map(l => ({
+        const recentLeads = filteredLeads.slice(0, 20).map(l => ({
             type: 'lead', id: l.id, title: l.name, subtitle: 'Nouveau prospect ajouté', time: new Date(l.created_at), icon: Users
         }));
-        const recentDeals = filteredDeals.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5).map(d => ({
+        const recentDeals = filteredDeals.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 20).map(d => ({
             type: 'deal', id: d.id, title: d.title, subtitle: `Deal mis à jour: ${d.stage}`, time: new Date(d.created_at), icon: Briefcase
         }));
-        setActivities([...recentLeads, ...recentDeals].sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 6));
+        const mergedActivities = [...recentLeads, ...recentDeals]
+          .sort((a, b) => b.time.getTime() - a.time.getTime())
+          .slice(0, 30);
+        setActivities(mergedActivities);
 
         // Unblock the page first; load top trainings in background.
         setLoading(false);
@@ -178,8 +204,9 @@ const Dashboard: React.FC = () => {
                             { label: 'Deals Gagnés', value: wonDeals.length.toString(), trend: 0, trendDirection: 'up' },
                         ],
                         chartData: Array.from(chartMap).map(([name, value]) => ({ name, value })),
-                        activities: [...recentLeads, ...recentDeals].sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 6),
+                        activities: mergedActivities,
                         topTrainings: [],
+                        topCommercials: sortedCommercials,
                     });
                     return;
                 }
@@ -208,8 +235,9 @@ const Dashboard: React.FC = () => {
                             { label: 'Deals Gagnés', value: wonDeals.length.toString(), trend: 0, trendDirection: 'up' },
                         ],
                         chartData: Array.from(chartMap).map(([name, value]) => ({ name, value })),
-                        activities: [...recentLeads, ...recentDeals].sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 6),
+                        activities: mergedActivities,
                         topTrainings: sortedStats,
+                        topCommercials: sortedCommercials,
                     });
                 }
             } catch (e) {
@@ -244,7 +272,9 @@ const Dashboard: React.FC = () => {
       { data: kpis[2], icon: <Phone size={18} strokeWidth={1.5} /> },
       { data: kpis[3], icon: <TrendingUp size={18} strokeWidth={1.5} /> }
   ];
-
+  const normalizedRole = (profile?.role ?? '').trim().toLowerCase();
+  const canShowTopCommercials =
+    (normalizedRole === 'admin' || normalizedRole === 'manager') && selectedUserId === 'all';
   return (
     <div className="ui-page pb-10">
       <PageHeader
@@ -290,16 +320,13 @@ const Dashboard: React.FC = () => {
         </Card>
 
         <div className="flex flex-col space-y-6">
-            <Card className="flex-1">
+            <Card className="h-[400px] overflow-hidden border-slate-200" noPadding>
+                <div className="flex h-full min-h-0 flex-col p-6">
                 <h3 className="mb-5 text-[15px] font-semibold leading-6 text-slate-700">Activités récentes</h3>
-                <div className="space-y-5">
+                <div className="relative h-[312px]">
+                <div className="h-full space-y-5 overflow-y-scroll pr-1">
                     {loading ? (
-                        <div className="ui-state-box ui-state-loading text-center">
-                          <div className="ui-state-stack">
-                            <p className="ui-state-title">Chargement...</p>
-                            <p className="ui-state-text">Récupération des dernières activités.</p>
-                          </div>
-                        </div>
+                        <SectionLoader className="h-full" />
                     ) : activities.length === 0 ? (
                         <div className="ui-state-box ui-state-empty text-center">
                           <div className="ui-state-stack">
@@ -326,6 +353,11 @@ const Dashboard: React.FC = () => {
                         ))
                     )}
                 </div>
+                {!loading && activities.length > 0 ? (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-surface to-transparent" />
+                ) : null}
+                </div>
+                </div>
             </Card>
         </div>
       </div>
@@ -348,30 +380,73 @@ const Dashboard: React.FC = () => {
                    </div>
               ) : (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      {topTrainings.map((t, idx) => (
-                          <div 
-                            key={idx} 
-                            className="micro-interaction flex items-center justify-between rounded-lg border border-border bg-surface p-4 transition-colors hover:border-slate-300"
-                            style={{ animationDelay: `${idx * 60}ms` }}
-                          >
-                              <div className="flex items-center gap-3">
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${idx === 0 ? 'bg-amber-100 text-amber-700' : idx === 1 ? 'bg-slate-100 text-slate-700' : idx === 2 ? 'bg-orange-100 text-orange-800' : 'bg-white border border-gray-200 text-gray-500'}`}>
-                                      #{idx + 1}
-                                  </div>
-                                  <div>
-                                      <p className="text-sm font-medium text-primary line-clamp-1">{t.title}</p>
-                                      <p className="text-xs text-secondary">{t.count} vente{t.count > 1 ? 's' : ''}</p>
-                                  </div>
-                              </div>
-                              <div className="text-right">
-                                  <span className="text-sm font-medium text-primary">{t.revenue} €</span>
-                              </div>
-                          </div>
-                      ))}
+                    {topTrainings.map((t, idx) => (
+                      <div
+                        key={t.title}
+                        className="micro-interaction flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2.5 transition-colors hover:border-slate-300"
+                        style={{ animationDelay: `${idx * 60}ms` }}
+                      >
+                        <div>
+                          <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold ${
+                            idx === 0 ? 'border-amber-200 bg-amber-50 text-amber-700' :
+                            idx === 1 ? 'border-slate-200 bg-slate-50 text-slate-700' :
+                            idx === 2 ? 'border-orange-200 bg-orange-50 text-orange-700' :
+                            'border-border bg-surface text-secondary'
+                          }`}>#{idx + 1}</span>
+                          <p className="mt-1.5 text-[15px] font-medium leading-5 text-primary">{t.title}</p>
+                          <p className="text-xs text-secondary">{t.count} vente{t.count > 1 ? 's' : ''}</p>
+                        </div>
+                        <p className="text-base font-medium leading-none tabular-nums text-slate-700">{t.revenue} €</p>
+                      </div>
+                    ))}
                   </div>
               )}
           </Card>
       </div>
+
+      {canShowTopCommercials ? (
+        <div className="mt-6 grid grid-cols-1 gap-6">
+          <Card>
+            <div className="mb-6 flex items-center gap-2">
+              <Users className="text-primary" size={20} />
+              <h3 className="text-[15px] font-semibold leading-6 text-slate-700">Top commerciaux (ventes)</h3>
+            </div>
+
+            {topCommercials.length === 0 ? (
+              <div className="ui-state-box ui-state-empty border-dashed py-8 text-center">
+                <div className="ui-state-stack">
+                  <p className="ui-state-title">{loading ? 'Calcul des performances...' : 'Classement indisponible'}</p>
+                  <p className="ui-state-text">
+                    {loading ? 'Préparation des indicateurs.' : 'Pas assez de ventes gagnées pour établir un classement.'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {topCommercials.map((c, idx) => (
+                  <div
+                    key={`${c.name}-${idx}`}
+                    className="micro-interaction flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2.5 transition-colors hover:border-slate-300"
+                    style={{ animationDelay: `${idx * 60}ms` }}
+                  >
+                    <div>
+                      <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold ${
+                        idx === 0 ? 'border-amber-200 bg-amber-50 text-amber-700' :
+                        idx === 1 ? 'border-slate-200 bg-slate-50 text-slate-700' :
+                        idx === 2 ? 'border-orange-200 bg-orange-50 text-orange-700' :
+                        'border-border bg-surface text-secondary'
+                      }`}>#{idx + 1}</span>
+                      <p className="mt-1.5 text-[15px] font-medium leading-5 text-primary">{c.name}</p>
+                      <p className="text-xs text-secondary">{c.count} vente{c.count > 1 ? 's' : ''}</p>
+                    </div>
+                    <p className="text-base font-medium leading-none tabular-nums text-slate-700">{c.revenue} €</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 };

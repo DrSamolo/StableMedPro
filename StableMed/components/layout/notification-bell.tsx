@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 
+import { SectionLoader } from "@/components/Common";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils/cn";
@@ -11,11 +13,13 @@ import { cn } from "@/lib/utils/cn";
 type NotificationItem = {
   id: string;
   user_id: string;
-  type: "task_reminder" | "lead_update" | "system" | "mention";
+  type: "task_reminder" | "lead_update" | "system" | "mention" | "message";
   title: string;
   message: string;
+  metadata: Record<string, unknown> | null;
   is_read: boolean;
   created_at: string;
+  reference_id: string | null;
 };
 
 function formatNotificationTime(value: string) {
@@ -33,6 +37,7 @@ function formatNotificationTime(value: string) {
 
 export function NotificationBell() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const userId = profile?.id ?? null;
@@ -67,7 +72,7 @@ export function NotificationBell() {
 
       const { data, error } = await supabase
         .from("notifications")
-        .select("id,user_id,type,title,message,is_read,created_at")
+        .select("id,user_id,type,title,message,metadata,is_read,created_at,reference_id")
         .eq("user_id", userId)
         .not("type", "eq", "message")
         .order("created_at", { ascending: false })
@@ -113,6 +118,67 @@ export function NotificationBell() {
       void supabase.removeChannel(channel);
     };
   }, [isOpen, queryClient, userId]);
+
+  function readMetadataString(notification: NotificationItem, key: string): string | null {
+    const metadata = notification.metadata;
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+      return null;
+    }
+    const value = metadata[key];
+    return typeof value === "string" && value.length > 0 ? value : null;
+  }
+
+  function notificationHref(notification: NotificationItem): string {
+    const conversationId = readMetadataString(notification, "conversation_id");
+    if (conversationId) return `/dashboard/chat/${conversationId}`;
+
+    const taskId = readMetadataString(notification, "task_id");
+    if (taskId) return `/dashboard/tasks?taskId=${taskId}`;
+
+    const leadId = readMetadataString(notification, "lead_id");
+    if (leadId) return `/dashboard/leads?leadId=${leadId}`;
+
+    const dealId =
+      readMetadataString(notification, "deal_id") ??
+      readMetadataString(notification, "opportunity_id");
+    if (dealId) return `/dashboard/pipeline?dealId=${dealId}`;
+
+    if (notification.type === "mention" || notification.type === "message") {
+      return "/dashboard/chat";
+    }
+    if (notification.type === "task_reminder") {
+      return "/dashboard/tasks";
+    }
+    if (notification.type === "lead_update") {
+      return "/dashboard/leads";
+    }
+
+    return "/dashboard";
+  }
+
+  async function markNotificationAsRead(notificationId: string) {
+    if (!userId) return;
+
+    const { error } = await supabase
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("id", notificationId)
+      .eq("user_id", userId)
+      .eq("is_read", false);
+
+    if (error) return;
+
+    await queryClient.invalidateQueries({ queryKey: ["header-notifications-unread-count", userId] });
+    await queryClient.invalidateQueries({ queryKey: ["header-notifications", userId] });
+  }
+
+  async function handleNotificationClick(notification: NotificationItem) {
+    const href = notificationHref(notification);
+
+    setIsOpen(false);
+    void markNotificationAsRead(notification.id);
+    router.push(href);
+  }
 
   async function markAllAsRead() {
     if (!userId) return;
@@ -162,12 +228,7 @@ export function NotificationBell() {
 
           <div className="max-h-80 overflow-y-auto p-2">
             {notificationsQuery.isLoading ? (
-              <div className="ui-state-box ui-state-loading py-4 text-center">
-                <div className="ui-state-stack">
-                  <p className="ui-state-title">Chargement...</p>
-                  <p className="ui-state-text">Récupération des notifications.</p>
-                </div>
-              </div>
+              <SectionLoader className="py-4" />
             ) : notifications.length === 0 ? (
               <div className="ui-state-box ui-state-empty py-4 text-center">
                 <div className="ui-state-stack">
@@ -177,17 +238,19 @@ export function NotificationBell() {
               </div>
             ) : (
               notifications.map((notification) => (
-                <article
+                <button
                   key={notification.id}
+                  type="button"
+                  onClick={() => void handleNotificationClick(notification)}
                   className={cn(
-                    "rounded-lg border px-2.5 py-2",
+                    "w-full rounded-lg border px-2.5 py-2 text-left transition hover:border-zinc-300 hover:bg-zinc-50",
                     notification.is_read ? "border-zinc-100 bg-white" : "border-zinc-200 bg-zinc-50/80",
                   )}
                 >
                   <p className="text-xs font-semibold text-zinc-800">{notification.title}</p>
                   <p className="mt-0.5 text-xs text-zinc-600">{notification.message}</p>
                   <p className="mt-1 text-[11px] text-zinc-500">{formatNotificationTime(notification.created_at)}</p>
-                </article>
+                </button>
               ))
             )}
           </div>

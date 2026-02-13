@@ -18,7 +18,7 @@ import {
   Users,
 } from "lucide-react";
 
-import { Avatar, BrandLockup } from "@/components/Common";
+import { Avatar, BrandLockup, BrandMark } from "@/components/Common";
 import { PerfObserver } from "@/components/perf/perf-observer";
 import { useAuth } from "@/contexts/AuthContext";
 import { setCached } from "@/lib/perf/cache";
@@ -149,8 +149,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <span className="text-sm text-secondary">Chargement...</span>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/85 backdrop-blur-sm">
+        <div className="flex flex-col items-center gap-4">
+          <div className="motion-fade-up">
+            <BrandMark className="h-11 w-11 animate-[spin_1.15s_linear_infinite] shadow-card" />
+          </div>
+          <p className="text-sm text-secondary">Chargement de votre espace...</p>
+        </div>
       </div>
     );
   }

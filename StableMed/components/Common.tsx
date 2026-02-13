@@ -22,6 +22,46 @@ export const BrandLockup: React.FC<{ className?: string; compact?: boolean }> = 
   </div>
 );
 
+export const SectionLoader: React.FC<{
+  title?: string;
+  subtitle?: string;
+  className?: string;
+  delayMs?: number;
+}> = ({
+  title = "Chargement...",
+  subtitle = "Mise a jour des donnees en cours.",
+  className = "",
+  delayMs = 180,
+}) => {
+  const [isVisible, setIsVisible] = useState(delayMs <= 0);
+
+  useEffect(() => {
+    if (delayMs <= 0) {
+      setIsVisible(true);
+      return;
+    }
+
+    const timer = setTimeout(() => setIsVisible(true), delayMs);
+    return () => clearTimeout(timer);
+  }, [delayMs]);
+
+  if (!isVisible) return null;
+
+  return (
+    <div className={`relative overflow-hidden rounded-md border border-zinc-200/80 bg-zinc-100/35 text-zinc-600 ${className}`}>
+      <div className="absolute inset-0 bg-zinc-100/30 backdrop-blur-md" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.55),rgba(255,255,255,0.05)_55%)]" />
+      <div className="relative z-[1] flex flex-col items-center justify-center py-9 text-center">
+        <BrandMark className="h-9 w-9 animate-[spin_1.15s_linear_infinite] shadow-sm" />
+        <div className="mt-2.5 space-y-1">
+          <p className="ui-state-title">{title}</p>
+          <p className="ui-state-text">{subtitle}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const Card: React.FC<CardProps> = ({ children, className = '', noPadding = false, hoverable = false }) => {
   // If hoverable is true or if className doesn't explicitly disable pointer events, we add micro-interactions
   const interactionClass = hoverable || className.includes('cursor-pointer') ? 'micro-interaction' : '';
@@ -298,7 +338,7 @@ export const SlideOver: React.FC<SlideOverProps> = ({ isOpen, onClose, title, ch
   if (!mounted || (!visible && !isOpen)) return null;
 
   return createPortal(
-    <div className="fixed inset-0 overflow-hidden z-50 motion-page-enter">
+    <div className="fixed inset-0 overflow-hidden z-[110] motion-page-enter">
       <div className="absolute inset-0 overflow-hidden">
         {/* Backdrop with Blur */}
         <div
@@ -309,8 +349,8 @@ export const SlideOver: React.FC<SlideOverProps> = ({ isOpen, onClose, title, ch
         {/* Panel Slide In - Using 'ease-sweet' custom bezier */}
         <div className={`pointer-events-none fixed inset-y-0 right-0 flex max-w-full transform transition-transform ease-sweet duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className={`pointer-events-auto w-screen ${widthClass}`}>
-            <div className="flex h-full flex-col overflow-y-scroll border-l border-border bg-surface shadow-float">
-              <div className="flex items-center justify-between border-b border-border bg-zinc-50/70 px-6 py-5">
+            <div className="flex h-full flex-col overflow-hidden border-l border-border bg-surface shadow-float">
+              <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b border-border bg-zinc-50/95 px-6 py-5 backdrop-blur-sm">
                 <h2 className="text-lg font-medium text-primary">{title}</h2>
                 <button 
                   type="button" 
@@ -320,7 +360,7 @@ export const SlideOver: React.FC<SlideOverProps> = ({ isOpen, onClose, title, ch
                   <X size={20} strokeWidth={1.5} />
                 </button>
               </div>
-              <div className="relative mt-6 flex-1 px-4 pb-6 sm:px-6">
+              <div className="relative mt-6 flex-1 overflow-y-auto px-4 pb-6 sm:px-6">
                 {children}
               </div>
             </div>
@@ -336,9 +376,23 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, maxWidth = 'sm' }) => {
+  const [mounted, setMounted] = useState(false);
+  const maxWidthClass = {
+    sm: 'sm:max-w-sm',
+    md: 'sm:max-w-md',
+    lg: 'sm:max-w-lg',
+    xl: 'sm:max-w-xl',
+    '2xl': 'sm:max-w-2xl',
+  }[maxWidth];
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
     const previousOverflow = document.body.style.overflow;
@@ -348,22 +402,23 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children }) => {
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!mounted || !isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 overflow-y-auto motion-page-enter">
-      <div className="flex min-h-screen items-center justify-center p-4 text-center sm:p-0">
+  return createPortal(
+    <div className="fixed inset-0 z-[120] overflow-y-auto motion-page-enter">
+      <div className="flex min-h-dvh items-start justify-center p-4 text-center sm:items-center sm:p-6">
         {/* Backdrop with Blur */}
         <div
             className="fixed inset-0 bg-slate-900/25 transition-opacity ease-sweet duration-200"
             onClick={onClose}
         ></div>
         
-        {/* Content with Zoom/Fade Entry */}
-        <div className="relative max-h-[calc(100vh-2rem)] transform overflow-hidden rounded-lg border border-zinc-200 bg-white text-left shadow-card transition-all sm:my-8 sm:w-full sm:max-w-sm motion-scale-in">
+        {/* Content with Zoom/Fade Entry + viewport-safe scrolling */}
+        <div className={`relative mt-8 max-h-[calc(100dvh-2rem)] w-full transform overflow-y-auto rounded-lg border border-zinc-200 bg-white text-left shadow-card transition-all sm:mt-0 sm:my-8 ${maxWidthClass} motion-scale-in`}>
             {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

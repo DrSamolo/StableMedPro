@@ -5,6 +5,7 @@ import { MessageSquare, Users } from "lucide-react";
 
 import { CreateConversationButton } from "@/components/chat/create-conversation-button";
 import { CreateDmButton } from "@/components/chat/create-dm-button";
+import { useAuth } from "@/contexts/AuthContext";
 import { useChat } from "@/hooks/use-chat";
 import { cn } from "@/lib/utils/cn";
 import type { ConversationSummary } from "@/schemas/chat-conversations";
@@ -33,7 +34,9 @@ function formatUnreadCount(value: number) {
 }
 
 export function ChatSidebar({ activeConversationId = null, initialConversations }: ChatSidebarProps) {
+  const { profile } = useAuth();
   const { conversations, conversationsQuery } = useChat(null, { initialConversations });
+  const canCreateGroupConversation = profile?.role === "admin" || profile?.role === "manager";
   const groupConversations = conversations.filter((summary) => summary.conversation.type === "group");
   const dmConversations = conversations.filter((summary) => summary.conversation.type === "dm");
 
@@ -46,9 +49,9 @@ export function ChatSidebar({ activeConversationId = null, initialConversations 
         </span>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-2">
+      <div className={cn("mb-4 gap-2", canCreateGroupConversation ? "grid grid-cols-2" : "grid grid-cols-1")}>
         <CreateDmButton />
-        <CreateConversationButton />
+        {canCreateGroupConversation ? <CreateConversationButton /> : null}
       </div>
 
       <div className="min-h-0 flex-1 space-y-1 overflow-y-auto rounded-md border border-zinc-200 bg-zinc-50/60 p-2">

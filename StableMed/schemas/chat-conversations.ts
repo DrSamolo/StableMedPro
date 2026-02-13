@@ -1,6 +1,14 @@
 import { z } from "zod";
 
 const IsoDateTimeSchema = z.string().datetime({ offset: true });
+const NullableAvatarSchema = z.preprocess(
+  (value) => {
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  },
+  z.string().min(1).max(2048).nullable(),
+);
 
 export const ConversationTypeSchema = z.enum(["dm", "group"]);
 
@@ -40,7 +48,7 @@ export const MentionParticipantSchema = z
     user_id: z.string().uuid(),
     display_name: z.string().trim().min(1).max(160),
     mention_value: z.string().trim().min(1).max(80).regex(/^[a-z0-9_.-]+$/),
-    avatar_url: z.string().trim().min(1).max(2048).nullable(),
+    avatar_url: NullableAvatarSchema,
   })
   .strict();
 
@@ -49,7 +57,7 @@ export const ChatCandidateSchema = z
     user_id: z.string().uuid(),
     full_name: z.string().nullable(),
     email: z.string().email().nullable(),
-    avatar_url: z.string().trim().min(1).max(2048).nullable(),
+    avatar_url: NullableAvatarSchema,
   })
   .strict();
 

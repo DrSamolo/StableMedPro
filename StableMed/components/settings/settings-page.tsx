@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Card, SectionTitle, Avatar, Modal } from '@/components/Common';
-import { User, Shield, LogOut, Loader2, Save, Camera, Upload, Database, RefreshCw, Users, Lock, AlertTriangle, Zap, Copy, RotateCcw, Plus, Briefcase, Mail, Send, CheckCircle, Sliders, Activity, XCircle, Play } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Card, SectionLoader, SectionTitle, Avatar, Modal } from '@/components/Common';
+import { User, Shield, LogOut, Loader2, Save, Camera, Upload, Database, RefreshCw, Users, Lock, AlertTriangle, Zap, Copy, RotateCcw, Plus, Briefcase, Mail, Send, CheckCircle, Sliders, Activity, XCircle, Play, Eye, Trash2, UserX } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Profile, RolePermission, UserRole, Team, Invitation, Lead } from '@/types';
@@ -44,6 +44,18 @@ const Settings: React.FC = () => {
   // Create Team State
   const [newTeamName, setNewTeamName] = useState('');
   const [isCreatingTeam, setIsCreatingTeam] = useState(false);
+  const [selectedTeamForMembers, setSelectedTeamForMembers] = useState<Team | null>(null);
+  const [isMembersModalOpen, setIsMembersModalOpen] = useState(false);
+  const [teamToDelete, setTeamToDelete] = useState<Team | null>(null);
+  const [isDeleteTeamModalOpen, setIsDeleteTeamModalOpen] = useState(false);
+  const [deleteTeamConfirmInput, setDeleteTeamConfirmInput] = useState('');
+  const [deleteTeamReassignTarget, setDeleteTeamReassignTarget] = useState('');
+  const [isDeletingTeam, setIsDeletingTeam] = useState(false);
+  const [isDeleteUserModalOpen, setIsDeleteUserModalOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<Profile | null>(null);
+  const [deleteUserConfirmInput, setDeleteUserConfirmInput] = useState('');
+  const [deleteUserReassignTarget, setDeleteUserReassignTarget] = useState('');
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
 
   // Invite Modal State
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -65,6 +77,33 @@ const Settings: React.FC = () => {
   // Tests State
   const [testResults, setTestResults] = useState<{name: string, status: 'pending'|'success'|'failure', message: string}[]>([]);
   const [isRunningTests, setIsRunningTests] = useState(false);
+  const normalizedRole = (profile?.role ?? '').trim().toLowerCase();
+  const isAdmin = normalizedRole === 'admin';
+  const isManager = normalizedRole === 'manager';
+  const teamMembersByTeamId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const member of teamMembers) {
+      if (!member.team_id) continue;
+      counts.set(member.team_id, (counts.get(member.team_id) ?? 0) + 1);
+    }
+    return counts;
+  }, [teamMembers]);
+  const selectedTeamMembers = useMemo(() => {
+    if (!selectedTeamForMembers) return [];
+    return teamMembers.filter((member) => member.team_id === selectedTeamForMembers.id);
+  }, [selectedTeamForMembers, teamMembers]);
+  const reassignableUsers = useMemo(() => {
+    if (!userToDelete) return teamMembers;
+    return teamMembers.filter((member) => member.id !== userToDelete.id);
+  }, [teamMembers, userToDelete]);
+  const teamUiStats = useMemo(() => {
+    const unassignedMembers = teamMembers.filter((member) => !member.team_id).length;
+    return {
+      totalTeams: teams.length,
+      totalMembers: teamMembers.length,
+      unassignedMembers,
+    };
+  }, [teamMembers, teams.length]);
 
   // Configuration for permissions rows
   const PERMISSIONS_CONFIG = [
@@ -96,6 +135,22 @@ const Settings: React.FC = () => {
     if (activeTab === 'roles') void fetchRoles();
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab !== 'team' || !user?.id) return;
+
+    const channel = supabase
+      .channel(`settings-invitations-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invitations' }, () => {
+        invalidateCached('settings:invitations:');
+        void fetchInvitations();
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [activeTab, user?.id, profile?.role, profile?.team_id]);
+
   const fetchTeam = async () => {
     perfStart('settings.fetchTeam');
     setIsLoadingTeam(true);
@@ -104,33 +159,67 @@ const Settings: React.FC = () => {
     const userScope = user?.id ?? 'anon';
     const cacheKey = `settings:team-members:${roleScope}:${teamScope}:${userScope}`;
     const cached = getCached<Profile[]>(cacheKey, SETTINGS_TEAM_CACHE_TTL_MS);
-    if (cached) {
+    if (cached && !isAdmin) {
       setTeamMembers(cached);
       setIsLoadingTeam(false);
       perfEnd('settings.fetchTeam');
       return;
     }
 
-    let query = supabase
-      .from('profiles')
-      .select(`id,email,full_name,avatar_url,role,manager_id,team_id,created_at, team:teams (id, name)`)
-      .order('created_at', { ascending: true });
+    try {
+      const profileTeamId = profile?.team_id ?? null;
+      if (isAdmin) {
+        const { error: syncError } = await supabase.rpc('sync_missing_profiles_from_auth');
+        if (syncError) {
+          const code = (syncError as { code?: string }).code ?? '';
+          const missingRpc =
+            code === 'PGRST202' ||
+            code === '42883' ||
+            String(syncError.message || '').toLowerCase().includes('not found');
+          if (!missingRpc) {
+            console.warn('sync_missing_profiles_from_auth failed:', syncError.message);
+          }
+        }
+      }
 
-    if (profile?.role === 'manager' && profile.team_id) {
-      query = query.eq('team_id', profile.team_id);
-    } else if (profile?.role !== 'admin' && user?.id) {
-      query = query.eq('id', user.id);
+      const query = supabase
+        .rpc('get_visible_profiles');
+
+      const { data, error } = await query;
+      if (error || !Array.isArray(data)) {
+        let fallback = supabase
+          .from('profiles')
+          .select('id,email,full_name,avatar_url,role,manager_id,team_id,created_at')
+          .order('created_at', { ascending: true });
+
+        if (isManager && profileTeamId) {
+          fallback = fallback.eq('team_id', profileTeamId);
+        } else if (!isAdmin && user?.id) {
+          fallback = fallback.eq('id', user.id);
+        }
+
+        const { data: fallbackData, error: fallbackError } = await fallback;
+        if (fallbackError) throw fallbackError;
+        const members = (fallbackData ?? []).map((member) => ({
+          ...member,
+          team: teams.find((team) => team.id === member.team_id),
+        })) as Profile[];
+        setTeamMembers(members);
+        setCached(cacheKey, members);
+      } else if (data) {
+        const members = (data as Profile[]).map((member) => ({
+          ...member,
+          team: teams.find((team) => team.id === member.team_id),
+        })) as Profile[];
+        setTeamMembers(members);
+        setCached(cacheKey, members);
+      }
+    } catch (error: any) {
+      addNotification('error', `Erreur chargement membres: ${error.message}`);
+    } finally {
+      setIsLoadingTeam(false);
+      perfEnd('settings.fetchTeam');
     }
-
-    const { data, error } = await query;
-
-    if (!error && data) {
-      const members = data as unknown as Profile[];
-      setTeamMembers(members);
-      setCached(cacheKey, members);
-    }
-    setIsLoadingTeam(false);
-    perfEnd('settings.fetchTeam');
   };
 
   const fetchTeams = async () => {
@@ -138,7 +227,7 @@ const Settings: React.FC = () => {
       const teamScope = profile?.team_id ?? 'none';
       const cacheKey = `settings:teams:${roleScope}:${teamScope}`;
       const cached = getCached<Team[]>(cacheKey, SETTINGS_TEAMS_CACHE_TTL_MS);
-      if (cached) {
+      if (cached && !isAdmin) {
         setTeams(cached);
         return;
       }
@@ -148,10 +237,11 @@ const Settings: React.FC = () => {
         .select('id,name,created_at')
         .order('created_at', { ascending: false });
 
-      if (profile?.role === 'manager' && profile.team_id) {
-        query = query.eq('id', profile.team_id);
-      } else if (profile?.role !== 'admin' && profile?.team_id) {
-        query = query.eq('id', profile.team_id);
+      const profileTeamId = profile?.team_id ?? null;
+      if (isManager && profileTeamId) {
+        query = query.eq('id', profileTeamId);
+      } else if (!isAdmin && profileTeamId) {
+        query = query.eq('id', profileTeamId);
       }
 
       const { data } = await query;
@@ -273,7 +363,7 @@ const Settings: React.FC = () => {
   };
 
   const handleChangeRole = async (userId: string, newRole: UserRole) => {
-    if (profile?.role !== 'admin') return addNotification('error', "Réservé aux admins.");
+    if (!isAdmin) return addNotification('error', "Réservé aux admins.");
     const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', userId);
     if (error) addNotification('error', "Erreur: " + error.message);
     else {
@@ -284,7 +374,7 @@ const Settings: React.FC = () => {
   };
 
   const handleChangeTeam = async (userId: string, teamId: string) => {
-    if (profile?.role !== 'admin') return addNotification('error', "Réservé aux admins.");
+    if (!isAdmin) return addNotification('error', "Réservé aux admins.");
     const val = teamId === 'none' ? null : teamId;
     const { error } = await supabase.from('profiles').update({ team_id: val }).eq('id', userId);
     if (error) {
@@ -299,21 +389,129 @@ const Settings: React.FC = () => {
   };
 
   const handleCreateTeam = async () => {
-      if (!newTeamName.trim()) return;
+      const normalizedTeamName = newTeamName.trim();
+      if (!normalizedTeamName) return;
       setIsCreatingTeam(true);
       try {
-          const { data, error } = await supabase.from('teams').insert([{ name: newTeamName }]).select().single();
+          const { data, error } = await supabase.from('teams').insert([{ name: normalizedTeamName }]).select().single();
           if (error) throw error;
           setTeams([data, ...teams]);
           invalidateCached('settings:teams:');
           setNewTeamName('');
           addNotification('success', 'Équipe créée');
       } catch (error: any) {
-          if (error.code === '42P01') setShowSqlModal(true);
-          else addNotification('error', error.message);
+          if (error.code === '42P01') {
+            setShowSqlModal(true);
+          } else if (error.code === '42501') {
+            addNotification('error', "Permission refusée: seuls les admins peuvent créer une équipe.");
+          } else if (error.code === '23505') {
+            addNotification('warning', "Cette équipe existe déjà.");
+          } else {
+            addNotification('error', error.message);
+          }
       } finally {
           setIsCreatingTeam(false);
       }
+  };
+
+  const openTeamMembersModal = (team: Team) => {
+    setSelectedTeamForMembers(team);
+    setIsMembersModalOpen(true);
+  };
+
+  const openDeleteTeamModal = (team: Team) => {
+    const fallbackTeam = teams.find((item) => item.id !== team.id);
+    setTeamToDelete(team);
+    setDeleteTeamConfirmInput('');
+    setDeleteTeamReassignTarget(fallbackTeam?.id ?? '');
+    setIsDeleteTeamModalOpen(true);
+  };
+
+  const handleDeleteTeam = async () => {
+    if (!teamToDelete) return;
+    if (deleteTeamConfirmInput.trim() !== teamToDelete.name) {
+      addNotification('warning', "Le nom de l'équipe ne correspond pas.");
+      return;
+    }
+
+    setIsDeletingTeam(true);
+    try {
+      const { error } = await supabase.rpc('delete_team_secure', {
+        p_team_id: teamToDelete.id,
+        p_reassign_team_id: deleteTeamReassignTarget || null,
+      });
+      if (error) throw error;
+      invalidateCached('settings:teams:');
+      invalidateCached('settings:team-members:');
+      invalidateCached('settings:invitations:');
+      await Promise.all([fetchTeams(), fetchTeam(), fetchInvitations()]);
+      setIsDeleteTeamModalOpen(false);
+      setTeamToDelete(null);
+      addNotification('success', 'Équipe supprimée.');
+    } catch (error: any) {
+      addNotification('error', `Suppression impossible: ${error.message}`);
+    } finally {
+      setIsDeletingTeam(false);
+    }
+  };
+
+  const openDeleteUserModal = (member: Profile) => {
+    const fallbackUser = teamMembers.find((user) => user.id !== member.id);
+    setUserToDelete(member);
+    setDeleteUserConfirmInput('');
+    setDeleteUserReassignTarget(fallbackUser?.id ?? '');
+    setIsDeleteUserModalOpen(true);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+    if (!deleteUserReassignTarget) {
+      addNotification('warning', 'Sélectionnez un utilisateur de réassignation.');
+      return;
+    }
+    const targetName = (userToDelete.full_name || userToDelete.email || 'Utilisateur').trim();
+    if (deleteUserConfirmInput.trim() !== targetName) {
+      addNotification('warning', "Le nom de confirmation ne correspond pas.");
+      return;
+    }
+
+    setIsDeletingUser(true);
+    try {
+      const { data, error } = await supabase.rpc('delete_user_secure', {
+        p_user_id: userToDelete.id,
+        p_reassign_user_id: deleteUserReassignTarget || null,
+      });
+      if (error) throw error;
+
+      const payload = (data ?? {}) as Record<string, unknown>;
+      const movedLeads = Number(payload.moved_leads ?? 0);
+      const movedDeals = Number(payload.moved_deals ?? 0);
+      const movedTasks = Number(payload.moved_tasks ?? 0);
+      const movedComments = Number(payload.moved_comments ?? 0);
+      const deletedNotifications = Number(payload.deleted_notifications ?? 0);
+
+      setTeamMembers(prev => prev.filter((member) => member.id !== userToDelete.id));
+      invalidateCached('settings:teams:');
+      invalidateCached('settings:team-members:');
+      invalidateCached('settings:invitations:');
+      await Promise.all([fetchTeams(), fetchTeam(), fetchInvitations()]);
+      setIsDeleteUserModalOpen(false);
+      setUserToDelete(null);
+      addNotification(
+        'success',
+        `Utilisateur supprimé. Leads: ${movedLeads} • Opportunités: ${movedDeals} • Tâches: ${movedTasks}`
+      );
+      pushAppNotification(
+        'Suppression utilisateur',
+        `Réaffectation effectuée: ${movedLeads} leads, ${movedDeals} opportunités, ${movedTasks} tâches, ${movedComments} commentaires. Notifications supprimées: ${deletedNotifications}.`,
+        'warning'
+      );
+    } catch (error: any) {
+      const details = [error?.message, error?.details, error?.hint].filter(Boolean).join(' | ');
+      addNotification('error', `Suppression impossible: ${details || 'Erreur inconnue'}`);
+    } finally {
+      setIsDeletingUser(false);
+    }
   };
 
   const handleInviteUser = async () => {
@@ -361,7 +559,7 @@ const Settings: React.FC = () => {
   };
 
   const handleTogglePermission = async (roleName: string, permKey: string, currentValue: boolean) => {
-      if (profile?.role !== 'admin') return addNotification('error', "Réservé aux admins.");
+      if (!isAdmin) return addNotification('error', "Réservé aux admins.");
       if (roleName === 'admin') return addNotification('warning', "Admin a tous les droits.");
 
       const rolePermEntry = rolePermissions.find(rp => rp.role === roleName);
@@ -412,16 +610,6 @@ const Settings: React.FC = () => {
        addNotification('success', 'Tentative de rechargement envoyée.');
     } finally {
        setIsReloadingSchema(false);
-    }
-  };
-
-  const handleForceAdmin = async () => {
-    if (!user) return;
-    const { error } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id);
-    if (!error) {
-        addNotification('success', "Vous êtes maintenant Admin !");
-        await refreshProfile();
-        setTimeout(() => window.location.reload(), 500);
     }
   };
 
@@ -504,9 +692,6 @@ const Settings: React.FC = () => {
       }
   };
 
-  const isAdmin = profile?.role === 'admin';
-  const isManager = profile?.role === 'manager';
-
   return (
     <div className="ui-page max-w-6xl">
       <SectionTitle title="Paramètres" subtitle="Gérez vos préférences, votre équipe et les droits d'accès" />
@@ -586,16 +771,6 @@ const Settings: React.FC = () => {
                         </div>
                       </div>
                   </SettingSection>
-                  {!isAdmin && (
-                    <div className="mb-6 flex items-start gap-3 rounded-md border border-orange-200 bg-orange-50 p-4">
-                        <AlertTriangle className="text-orange-600 shrink-0" size={18} />
-                        <div>
-                            <h4 className="text-sm font-bold text-orange-800 mb-1">Mode Développeur</h4>
-                            <p className="text-xs text-orange-700 mb-3">Auto-promotion Admin (Demo uniquement).</p>
-                            <button onClick={handleForceAdmin} className="ui-btn h-8 rounded-md bg-orange-600 px-3 text-xs font-medium text-white hover:bg-orange-700">Devenir Admin</button>
-                        </div>
-                    </div>
-                  )}
                   <div className="flex justify-end pt-4 border-t border-border">
                       <button onClick={handleUpdateProfile} disabled={isSaving} className="ui-btn ui-btn-primary">
                           {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Enregistrer
@@ -609,18 +784,75 @@ const Settings: React.FC = () => {
                {isAdmin && (
                    <Card>
                        <SettingSection title="Gestion des Équipes">
-                           <div className="flex gap-3 items-end">
+                           <div className="mb-4 flex flex-wrap items-center gap-2">
+                             <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700">
+                               {teamUiStats.totalTeams} équipe{teamUiStats.totalTeams > 1 ? 's' : ''}
+                             </span>
+                             <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700">
+                               {teamUiStats.totalMembers} membre{teamUiStats.totalMembers > 1 ? 's' : ''}
+                             </span>
+                             {teamUiStats.unassignedMembers > 0 ? (
+                               <span className="inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                                 {teamUiStats.unassignedMembers} non assigné{teamUiStats.unassignedMembers > 1 ? 's' : ''}
+                               </span>
+                             ) : null}
+                           </div>
+                           <div className="rounded-md border border-border bg-zinc-50/50 p-3">
+                             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                                <div className="flex-1">
-                                   <label className="ui-field-label">Nom de l'équipe</label>
-                                   <input type="text" value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="ex: Équipe Paris..." className="ui-input" />
+                                   <label className="ui-field-label">Nouvelle équipe</label>
+                                   <input type="text" value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="ex: Équipe Paris..." className="ui-input bg-white" />
                                </div>
-                               <button onClick={handleCreateTeam} disabled={!newTeamName || isCreatingTeam} className="ui-btn ui-btn-primary">
+                               <button onClick={handleCreateTeam} disabled={!newTeamName || isCreatingTeam} className="ui-btn ui-btn-primary w-full sm:w-auto">
                                     {isCreatingTeam ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Créer
                                </button>
+                            </div>
                            </div>
                            <div className="mt-6 flex flex-wrap gap-2">
                                {teams.length === 0 && <span className="text-sm text-gray-400 italic">Aucune équipe définie.</span>}
-                               {teams.map(t => (<div key={t.id} className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded border border-gray-200 text-sm font-medium text-primary"><Briefcase size={14} /> {t.name}</div>))}
+                               {teams.length > 0 && (
+                                 <div className="w-full overflow-x-auto rounded-md border border-border bg-white">
+                                   <table className="ui-table min-w-[620px] text-left text-sm">
+                                     <thead className="border-b border-border">
+                                       <tr>
+                                         <th className="px-4 py-2.5 text-xs uppercase tracking-wide text-zinc-500">Équipe</th>
+                                         <th className="px-4 py-2.5 text-xs uppercase tracking-wide text-zinc-500">Membres</th>
+                                         <th className="px-4 py-2.5 text-right text-xs uppercase tracking-wide text-zinc-500">Actions</th>
+                                       </tr>
+                                     </thead>
+                                     <tbody className="divide-y divide-border">
+                                       {teams.map((team) => {
+                                         const count = teamMembersByTeamId.get(team.id) ?? 0;
+                                         return (
+                                           <tr key={team.id} className="ui-table-row hover:bg-zinc-50/50">
+                                             <td className="px-4 py-2.5">
+                                               <div className="flex items-center gap-2">
+                                                 <Briefcase size={14} className="text-gray-500" />
+                                                 <span className="text-sm font-medium text-primary">{team.name}</span>
+                                               </div>
+                                             </td>
+                                             <td className="px-4 py-2.5">
+                                               <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700">
+                                                 {count}
+                                               </span>
+                                             </td>
+                                             <td className="px-4 py-2.5">
+                                               <div className="flex justify-end gap-1.5 sm:gap-2">
+                                                 <button onClick={() => openTeamMembersModal(team)} className="ui-btn ui-btn-secondary h-8 px-2 text-[11px] sm:px-2.5 sm:text-xs">
+                                                   <Eye size={12} /> Voir membres
+                                                 </button>
+                                                 <button onClick={() => openDeleteTeamModal(team)} className="ui-btn h-8 border border-rose-200 bg-white px-2 text-[11px] font-medium text-rose-700 hover:bg-rose-50 sm:px-2.5 sm:text-xs">
+                                                   <Trash2 size={12} /> Supprimer
+                                                 </button>
+                                               </div>
+                                             </td>
+                                           </tr>
+                                         );
+                                       })}
+                                     </tbody>
+                                   </table>
+                                 </div>
+                               )}
                            </div>
                        </SettingSection>
                    </Card>
@@ -659,20 +891,19 @@ const Settings: React.FC = () => {
                         </div>
                     )}
 
-                    <h4 className="text-xs font-bold text-secondary uppercase mb-3">Membres Actifs</h4>
+                    <h4 className="text-xs font-bold text-secondary uppercase mb-3">Membres</h4>
                     {isLoadingTeam ? (
-                      <div className="ui-state-box ui-state-loading flex justify-center py-8">
-                        <div className="ui-state-stack">
-                          <Loader2 className="animate-spin text-gray-400" />
-                          <p className="ui-state-title">Chargement de l'équipe...</p>
-                          <p className="ui-state-text">Récupération des membres et invitations.</p>
-                        </div>
-                      </div>
+                      <SectionLoader className="py-8" />
                     ) : (
                       <div className="overflow-x-auto">
                       <table className="ui-table text-left text-sm">
                         <thead className="border-b border-border">
-                            <tr><th className="px-4 py-3">Utilisateur</th><th className="px-4 py-3">Rôle</th><th className="px-4 py-3">Équipe</th></tr>
+                            <tr>
+                              <th className="px-4 py-3">Utilisateur</th>
+                              <th className="px-4 py-3">Rôle</th>
+                              <th className="px-4 py-3">Équipe</th>
+                              {isAdmin ? <th className="px-4 py-3 text-right">Actions</th> : null}
+                            </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
                           {teamMembers.map((member) => (
@@ -702,6 +933,19 @@ const Settings: React.FC = () => {
                                         </select>
                                       ) : <span className="text-secondary text-xs">{member.team?.name || '-'}</span>}
                                   </td>
+                                  {isAdmin ? (
+                                    <td className="px-4 py-3">
+                                      <div className="flex justify-end">
+                                        <button
+                                          onClick={() => openDeleteUserModal(member)}
+                                          disabled={member.id === user?.id}
+                                          className="ui-btn h-8 border border-rose-200 bg-white px-2.5 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                          <UserX size={12} /> Supprimer
+                                        </button>
+                                      </div>
+                                    </td>
+                                  ) : null}
                               </tr>
                           ))}
                         </tbody>
@@ -835,7 +1079,164 @@ const Settings: React.FC = () => {
         </div>
       </div>
 
-      {/* Invite Modal */}
+      {/* Team Members Modal */}
+      <Modal isOpen={isMembersModalOpen} onClose={() => setIsMembersModalOpen(false)} maxWidth="2xl">
+         <div className="w-full rounded-md bg-surface p-4 sm:p-6">
+            <div className="mb-5 flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-sm font-medium text-primary sm:text-base">
+                Membres {selectedTeamForMembers ? `• ${selectedTeamForMembers.name}` : ''}
+              </h3>
+              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700">
+                {selectedTeamMembers.length}
+              </span>
+            </div>
+            {selectedTeamMembers.length === 0 ? (
+              <div className="ui-state-box ui-state-empty py-10">
+                <div className="ui-state-stack">
+                  <p className="ui-state-title">Aucun membre</p>
+                  <p className="ui-state-text">Cette équipe est vide pour le moment.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="max-h-[64vh] space-y-2 overflow-y-auto pr-1">
+                {selectedTeamMembers.map((member) => (
+                  <div key={member.id} className="flex items-center justify-between rounded-md border border-border bg-white px-3 py-2">
+                    <div className="min-w-0 flex items-center gap-3">
+                      <Avatar name={member.full_name || member.email} src={member.avatar_url || null} size="sm" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-primary">{member.full_name || 'Sans nom'}</p>
+                        <p className="truncate text-xs text-secondary">{member.email}</p>
+                      </div>
+                    </div>
+                    <span className="ml-2 inline-flex shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium capitalize text-zinc-700">
+                      {member.role}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-6 flex justify-end">
+              <button onClick={() => setIsMembersModalOpen(false)} className="ui-btn ui-btn-secondary w-full sm:w-auto">Fermer</button>
+            </div>
+         </div>
+      </Modal>
+
+      <Modal isOpen={isDeleteTeamModalOpen} onClose={() => setIsDeleteTeamModalOpen(false)} maxWidth="lg">
+        <div className="w-full max-w-lg rounded-md bg-surface p-4 sm:p-6">
+          <h3 className="text-lg font-medium text-primary mb-2">Supprimer une équipe</h3>
+          <p className="text-sm text-secondary mb-4">
+            Cette action supprime l&apos;équipe et ses canaux de chat associés. Les membres et invitations peuvent être réaffectés.
+          </p>
+          <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2">
+            <p className="text-xs font-medium text-rose-700">Action irréversible</p>
+            <p className="mt-0.5 text-xs text-rose-700/90">Les canaux d&apos;équipe seront définitivement supprimés.</p>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="ui-field-label">Réaffecter les membres vers</label>
+              <select
+                value={deleteTeamReassignTarget}
+                onChange={(e) => setDeleteTeamReassignTarget(e.target.value)}
+                className="ui-input"
+              >
+                <option value="">Aucune équipe (désassigner les membres)</option>
+                {teams
+                  .filter((team) => teamToDelete ? team.id !== teamToDelete.id : true)
+                  .map((team) => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
+                  ))}
+              </select>
+            </div>
+            <div>
+              <label className="ui-field-label">
+                Confirmez en tapant le nom exact: <span className="font-semibold text-primary">{teamToDelete?.name}</span>
+              </label>
+              <input
+                type="text"
+                value={deleteTeamConfirmInput}
+                onChange={(e) => setDeleteTeamConfirmInput(e.target.value)}
+                className="ui-input"
+                placeholder={teamToDelete?.name || 'Nom de l’équipe'}
+              />
+            </div>
+          </div>
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+            <button onClick={() => setIsDeleteTeamModalOpen(false)} className="ui-btn ui-btn-secondary w-full sm:w-auto">Annuler</button>
+            <button
+              onClick={handleDeleteTeam}
+              disabled={isDeletingTeam || !teamToDelete || deleteTeamConfirmInput.trim() !== teamToDelete.name}
+              className="ui-btn h-9 w-full border border-rose-700 bg-rose-700 px-4 text-sm font-medium text-white hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            >
+              {isDeletingTeam ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+              Supprimer l&apos;équipe
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isDeleteUserModalOpen} onClose={() => setIsDeleteUserModalOpen(false)} maxWidth="lg">
+        <div className="w-full max-w-lg rounded-md bg-surface p-4 sm:p-6">
+          <h3 className="mb-2 text-lg font-medium text-primary">Supprimer un utilisateur</h3>
+          <p className="mb-4 text-sm text-secondary">
+            Cette action supprime définitivement le compte utilisateur. Les leads, opportunités, tâches et références liées peuvent être réassignés.
+          </p>
+          <div className="mb-4 rounded-md border border-rose-200 bg-rose-50 px-3 py-2">
+            <p className="text-xs font-medium text-rose-700">Action irréversible</p>
+            <p className="mt-0.5 text-xs text-rose-700/90">Le compte supprimé ne pourra plus se connecter.</p>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="ui-field-label">Réassigner vers</label>
+              <select
+                value={deleteUserReassignTarget}
+                onChange={(e) => setDeleteUserReassignTarget(e.target.value)}
+                className="ui-input"
+              >
+                <option value="">Choisir un utilisateur...</option>
+                {reassignableUsers.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {(member.full_name || member.email || member.id)}{member.role ? ` (${member.role})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="ui-field-label">
+                Confirmez en tapant le nom exact: <span className="font-semibold text-primary">{(userToDelete?.full_name || userToDelete?.email || 'Utilisateur').trim()}</span>
+              </label>
+              <input
+                type="text"
+                value={deleteUserConfirmInput}
+                onChange={(e) => setDeleteUserConfirmInput(e.target.value)}
+                className="ui-input"
+                placeholder={(userToDelete?.full_name || userToDelete?.email || 'Utilisateur').trim()}
+              />
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end sm:gap-3">
+            <button onClick={() => setIsDeleteUserModalOpen(false)} className="ui-btn ui-btn-secondary w-full sm:w-auto">
+              Annuler
+            </button>
+            <button
+              onClick={handleDeleteUser}
+              disabled={
+                isDeletingUser ||
+                !userToDelete ||
+                !deleteUserReassignTarget ||
+                deleteUserConfirmInput.trim() !== (userToDelete.full_name || userToDelete.email || 'Utilisateur').trim()
+              }
+              className="ui-btn h-9 w-full border border-rose-700 bg-rose-700 px-4 text-sm font-medium text-white hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            >
+              {isDeletingUser ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />}
+              Supprimer l&apos;utilisateur
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       <Modal isOpen={isInviteModalOpen} onClose={() => setIsInviteModalOpen(false)}>
          <div className="w-full max-w-md rounded-md bg-surface p-6">
             <h3 className="text-lg font-medium text-primary mb-6">Inviter un nouveau membre</h3>

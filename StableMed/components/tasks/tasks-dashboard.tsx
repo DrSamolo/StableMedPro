@@ -30,7 +30,7 @@ import Link from "next/link";
 
 import { DailyBriefing } from "@/components/tasks/daily-briefing";
 import { EditableTask, TaskModal } from "@/components/tasks/task-modal";
-import { SlideOver } from "@/components/Common";
+import { SectionLoader, SlideOver } from "@/components/Common";
 import { useSectionPerf } from "@/lib/perf/use-section-perf";
 import { cn } from "@/lib/utils/cn";
 import { supabase } from "@/lib/supabase";
@@ -411,12 +411,7 @@ export function TasksDashboard() {
         </div>
 
         {tasksQuery.isLoading ? (
-          <div className="ui-state-box ui-state-loading p-10 text-center text-sm">
-            <div className="ui-state-stack">
-              <p className="ui-state-title">Chargement des tâches...</p>
-              <p className="ui-state-text">Synchronisation de votre planning.</p>
-            </div>
-          </div>
+          <SectionLoader className="p-10 text-sm" />
         ) : null}
 
         {tasksQuery.isError ? (

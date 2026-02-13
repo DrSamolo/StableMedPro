@@ -39,3 +39,14 @@ Run SQL migrations in this order:
 12. `supabase/migrations/20260212_step3_7_sales_chat_all_hands.sql`
 13. `supabase/migrations/20260212_step3_8_chat_conversation_summaries_rpc.sql`
 14. `supabase/migrations/20260212_step3_9_chat_unread_total_rpc.sql`
+15. `supabase/migrations/20260212_step5_1_avatars_storage_bucket_policies.sql`
+16. `supabase/migrations/20260213_step5_2_profiles_backfill_and_auth_trigger.sql`
+17. `supabase/migrations/20260213_step5_3_sync_missing_profiles_rpc.sql`
+18. `supabase/migrations/20260213_step5_4_visible_profiles_rpc.sql`
+19. `supabase/migrations/20260213_step5_5_delete_team_secure_rpc.sql`
+20. `supabase/migrations/20260213_step5_6_delete_user_secure_rpc.sql`
+21. `supabase/migrations/20260213_step5_7_lead_trainings_association_table.sql`
+22. `supabase/migrations/20260213_step5_8_sales_chat_all_hands_wording_refresh.sql`
+23. `supabase/migrations/20260213_step5_9_delete_user_secure_hardening.sql`
+24. `supabase/migrations/20260213_step5_10_consume_invitation_token_rpc.sql`
+25. `supabase/migrations/20260213_step5_11_delete_user_secure_reassign_audit_logs.sql`

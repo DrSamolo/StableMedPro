@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SectionTitle, Modal, SlideOver, Avatar } from '@/components/Common';
+import { SectionTitle, Modal, SlideOver, Avatar, SectionLoader } from '@/components/Common';
 import { FilterBar } from '@/components/FilterBar';
 import { Deal, Training } from '@/types';
 import { MoreHorizontal, Plus, Loader2, Trash2, Save, Calendar, DollarSign, TrendingUp, CheckCircle, Search, X, Check, Award, PartyPopper, AlertCircle, RefreshCw } from 'lucide-react';
@@ -30,6 +30,16 @@ interface PipelineColumnProps {
   onSelectDeal: (deal: Deal) => void;
 }
 
+type LeadOption = {
+  id: string;
+  name: string;
+  user_id: string | null;
+  email: string | null;
+  phone: string | null;
+  profession: string | null;
+  location: string | null;
+};
+
 const PipelineColumn: React.FC<PipelineColumnProps> = ({ 
   title, 
   stage, 
@@ -50,7 +60,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
       <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
           {stage === 'won' && <Award size={13} className="text-zinc-500" />}
           {title} 
-          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full border border-zinc-200 bg-white px-1.5 text-[10px] font-semibold text-zinc-500">{deals.length}</span>
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[10px] font-semibold text-zinc-500">{deals.length}</span>
       </h3>
       <span className="text-[11px] font-medium tabular-nums text-zinc-500">{totalValue.toLocaleString()} €</span>
     </div>
@@ -69,12 +79,12 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
                 {deal.trainings && deal.trainings.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
                         {deal.trainings.slice(0, 1).map((t, idx) => (
-                            <span key={idx} className="max-w-[150px] truncate rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-600">
+                            <span key={idx} className="max-w-[150px] truncate rounded bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-600">
                                 {t.title}
                             </span>
                         ))}
                         {deal.trainings.length > 1 && (
-                            <span className="rounded border border-zinc-200 bg-white px-1.5 py-0.5 text-[10px] text-zinc-500">
+                            <span className="rounded bg-white px-1.5 py-0.5 text-[10px] text-zinc-500">
                                 +{deal.trainings.length - 1}
                             </span>
                         )}
@@ -82,15 +92,15 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
                 ) : (
                     // Fallback for Legacy Data (String)
                     deal.training ? (
-                         <span className="inline-block max-w-[150px] truncate rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-500">{deal.training}</span>
+                         <span className="inline-block max-w-[150px] truncate rounded bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-500">{deal.training}</span>
                     ) : (
                          <span className="text-[11px] text-zinc-500 italic">Sans formation</span>
                     )
                 )}
             </div>
             {deal.assignee ? (
-                <div title={deal.assignee.full_name}>
-                    <Avatar name={deal.assignee.full_name} src={deal.assignee.avatar_url} size="sm" />
+                <div title={deal.assignee.full_name || deal.owner}>
+                    <Avatar name={deal.assignee.full_name || deal.owner || 'U'} src={deal.assignee.avatar_url} size="sm" />
                 </div>
             ) : (
                 <div title="Non assigné">
@@ -100,11 +110,11 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
           </div>
           
           <h4 className="mb-0.5 truncate text-sm font-semibold leading-5 text-primary">{deal.leadName}</h4>
-          <p className="truncate text-[12px] text-zinc-500">{deal.assignee?.full_name || "Non assigné"}</p>
+          <p className="truncate text-[12px] text-zinc-500">{deal.assignee?.full_name || deal.owner || "Non assigné"}</p>
           
           <div className="mt-2.5 flex items-center justify-between border-t border-zinc-100 pt-2.5">
             <div className="text-sm font-semibold tabular-nums text-zinc-900">{deal.amount.toLocaleString()} €</div>
-            <div className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] font-medium text-zinc-500">
+            <div className="rounded-full bg-zinc-50 px-2 py-0.5 text-[11px] font-medium text-zinc-500">
                 {deal.probability}%
             </div>
           </div>
@@ -147,6 +157,10 @@ const Pipeline: React.FC = () => {
   const [newDealTitle, setNewDealTitle] = useState('');
   const [newDealAmount, setNewDealAmount] = useState(0);
   const [newDealOwner, setNewDealOwner] = useState('');
+  const [newDealLeadId, setNewDealLeadId] = useState<string>('');
+  const [leadOptions, setLeadOptions] = useState<LeadOption[]>([]);
+  const [leadSearch, setLeadSearch] = useState('');
+  const [showLeadDropdown, setShowLeadDropdown] = useState(false);
 
   // Won Modal State
   const [isWonModalOpen, setIsWonModalOpen] = useState(false);
@@ -161,6 +175,7 @@ const Pipeline: React.FC = () => {
   const [trainingSearch, setTrainingSearch] = useState('');
   const [showTrainingDropdown, setShowTrainingDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const leadDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (user) {
@@ -170,16 +185,79 @@ const Pipeline: React.FC = () => {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (users.length === 0) return;
+    setDeals((prev) =>
+      prev.map((deal) => {
+        if (deal.assignee || !deal.owner_id) return deal;
+        const fallbackAssignee = users.find((u) => u.id === deal.owner_id);
+        if (!fallbackAssignee) return deal;
+        return {
+          ...deal,
+          assignee: fallbackAssignee,
+          owner: fallbackAssignee.full_name || deal.owner,
+        };
+      }),
+    );
+  }, [users]);
+
   // Click outside listener for dropdown
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowTrainingDropdown(false);
       }
+      if (leadDropdownRef.current && !leadDropdownRef.current.contains(event.target as Node)) {
+        setShowLeadDropdown(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const fetchLeadOptions = async () => {
+    if (!user) return;
+
+    let query: any = supabase
+      .from('leads')
+      .select('id,name,user_id,email,phone,profession,location,profiles:user_id ( team_id )')
+      .order('created_at', { ascending: false })
+      .limit(400);
+
+    if (selectedUserId !== 'all') query = query.eq('user_id', selectedUserId);
+    if (selectedTeamId !== 'all') query = query.eq('profiles.team_id', selectedTeamId);
+
+    const { data, error } = await query;
+    if (error) {
+      addNotification('error', `Chargement leads impossible: ${error.message}`);
+      return;
+    }
+
+    const mapped = ((data ?? []) as any[]).map((row) => ({
+      id: row.id,
+      name: row.name || 'Lead sans nom',
+      user_id: row.user_id ?? null,
+      email: row.email ?? null,
+      phone: row.phone ?? null,
+      profession: row.profession ?? null,
+      location: row.location ?? null,
+    })) as LeadOption[];
+
+    setLeadOptions(mapped);
+  };
+
+  const openCreateDealPanel = () => {
+    setIsModalOpen(true);
+    setNewDealTitle('');
+    setNewDealAmount(0);
+    setSelectedTrainingIds([]);
+    setTrainingSearch('');
+    setShowTrainingDropdown(false);
+    setNewDealLeadId('');
+    setLeadSearch('');
+    setShowLeadDropdown(false);
+    void fetchLeadOptions();
+  };
 
   const handleSelectDeal = (deal: Deal) => {
       setSelectedDeal(deal);
@@ -197,18 +275,24 @@ const Pipeline: React.FC = () => {
   };
 
   const mapDealRows = (rows: any[]): Deal[] =>
-    (rows || []).map((d: any) => ({
-      id: d.id,
-      leadName: d.title,
-      training: d.training,
-      amount: d.amount,
-      stage: d.stage as Deal['stage'],
-      probability: d.probability,
-      owner: d.owner?.full_name || 'Inconnu',
-      owner_id: d.owner_id,
-      assignee: d.owner,
-      trainings: d.deal_trainings?.map((dt: any) => dt.training).filter(Boolean) || []
-    }));
+    (rows || []).map((d: any) => {
+      const ownerRelation = Array.isArray(d.owner) ? d.owner[0] : d.owner;
+      const fallbackAssignee = users.find((u) => u.id === d.owner_id);
+      const assignee = ownerRelation || fallbackAssignee;
+
+      return {
+        id: d.id,
+        leadName: d.title,
+        training: d.training,
+        amount: d.amount,
+        stage: d.stage as Deal['stage'],
+        probability: d.probability,
+        owner: assignee?.full_name || 'Inconnu',
+        owner_id: d.owner_id,
+        assignee,
+        trainings: d.deal_trainings?.map((dt: any) => dt.training).filter(Boolean) || []
+      };
+    });
 
   const fetchDeals = async () => {
     perfStart('pipeline.fetchDeals');
@@ -380,6 +464,10 @@ const Pipeline: React.FC = () => {
         probability: 20
     };
 
+    if (newDealLeadId) {
+        payload.lead_id = newDealLeadId;
+    }
+
     if (!compatibilityMode) {
         payload.owner_id = newDealOwner || user.id;
     }
@@ -415,6 +503,53 @@ const Pipeline: React.FC = () => {
         addNotification('error', error?.message || 'Erreur');
     }
   };
+
+  const handleCreateDealLeadLink = async (leadId: string) => {
+    setNewDealLeadId(leadId);
+    const linkedLead = leadOptions.find((lead) => lead.id === leadId);
+    if (!linkedLead) return;
+
+    setLeadSearch(linkedLead.name);
+    setShowLeadDropdown(false);
+    setNewDealTitle(linkedLead.name);
+    if (!compatibilityMode && linkedLead.user_id) {
+      setNewDealOwner(linkedLead.user_id);
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('lead_trainings')
+        .select('training_id')
+        .eq('lead_id', leadId);
+
+      if (error) {
+        setSelectedTrainingIds([]);
+        setNewDealAmount(0);
+        return;
+      }
+
+      const linkedTrainingIds = ((data ?? []) as Array<{ training_id: string }>).map((item) => item.training_id);
+      setSelectedTrainingIds(linkedTrainingIds);
+      const amount = trainings
+        .filter((training) => linkedTrainingIds.includes(training.id))
+        .reduce((sum, training) => sum + training.price, 0);
+      setNewDealAmount(amount);
+    } catch {
+      setSelectedTrainingIds([]);
+      setNewDealAmount(0);
+    }
+  };
+
+  const filteredLeadOptions = leadOptions.filter((lead) => {
+    const keyword = leadSearch.trim().toLowerCase();
+    if (!keyword) return true;
+    return (
+      lead.name.toLowerCase().includes(keyword) ||
+      (lead.profession ?? '').toLowerCase().includes(keyword) ||
+      (lead.location ?? '').toLowerCase().includes(keyword) ||
+      (lead.email ?? '').toLowerCase().includes(keyword)
+    );
+  });
 
   const handleUpdateDeal = async () => {
     if (!selectedDeal) return;
@@ -600,13 +735,7 @@ const Pipeline: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="ui-state-box ui-state-loading motion-fade-up flex h-full items-center justify-center p-10 text-sm">
-        <div className="inline-flex flex-col items-center gap-1 text-center">
-          <Loader2 className="animate-spin text-gray-400" />
-          <p className="ui-state-title">Chargement du pipeline...</p>
-          <p className="ui-state-text">Préparation des opportunités en cours.</p>
-        </div>
-      </div>
+      <SectionLoader className="motion-fade-up h-full p-10 text-sm" />
     );
   }
 
@@ -629,7 +758,7 @@ const Pipeline: React.FC = () => {
             </button>
 
             <button 
-                onClick={() => setIsModalOpen(true)}
+                onClick={openCreateDealPanel}
                 className="ui-btn ui-btn-primary micro-interaction motion-soft-hover motion-soft-press"
             >
                 <Plus size={16} /> <span className="hidden sm:inline">Nouvelle opportunité</span>
@@ -676,7 +805,7 @@ const Pipeline: React.FC = () => {
                         onDrop={handleDrop}
                         onDragOver={handleDragOver}
                         onDragStart={handleDragStart}
-                        onOpenCreate={() => setIsModalOpen(true)}
+                        onOpenCreate={openCreateDealPanel}
                         onSelectDeal={handleSelectDeal}
                     />
                 ))}
@@ -688,6 +817,60 @@ const Pipeline: React.FC = () => {
       <SlideOver isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nouvelle Opportunité" maxWidth="lg">
              <p className="mb-5 text-sm text-secondary">Créez une opportunité en quelques champs clés.</p>
              <div className="space-y-4">
+                <div>
+                    <label className="ui-field-label">Lier un lead (optionnel)</label>
+                    <div className="relative" ref={leadDropdownRef}>
+                      <input
+                        value={leadSearch}
+                        onChange={(e) => {
+                          setLeadSearch(e.target.value);
+                          setShowLeadDropdown(true);
+                          if (!e.target.value.trim()) {
+                            setNewDealLeadId('');
+                          }
+                        }}
+                        onFocus={() => setShowLeadDropdown(true)}
+                        placeholder="Rechercher un lead..."
+                        className="ui-input pr-8"
+                      />
+                      <div className="pointer-events-none absolute right-2 top-2.5 text-gray-400">
+                        <Search size={14} />
+                      </div>
+
+                      {showLeadDropdown ? (
+                        <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-card">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewDealLeadId('');
+                              setLeadSearch('');
+                              setShowLeadDropdown(false);
+                            }}
+                            className={`w-full px-3 py-2 text-left text-sm hover:bg-zinc-50 ${newDealLeadId ? '' : 'bg-zinc-100'}`}
+                          >
+                            Aucun lead lié
+                          </button>
+                          {filteredLeadOptions.map((lead) => (
+                            <button
+                              key={lead.id}
+                              type="button"
+                              onClick={() => void handleCreateDealLeadLink(lead.id)}
+                              className={`w-full px-3 py-2 text-left hover:bg-zinc-50 ${newDealLeadId === lead.id ? 'bg-zinc-100' : ''}`}
+                            >
+                              <p className="truncate text-sm font-medium text-primary">{lead.name}</p>
+                              <p className="truncate text-xs text-secondary">
+                                {lead.profession || 'Profession non renseignée'}
+                                {lead.location ? ` • ${lead.location}` : ''}
+                              </p>
+                            </button>
+                          ))}
+                          {filteredLeadOptions.length === 0 ? (
+                            <p className="px-3 py-2 text-xs text-secondary">Aucun lead trouvé.</p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                </div>
                 <div>
                     <label className="ui-field-label">Nom du prospect / Deal</label>
                     <input type="text" value={newDealTitle} onChange={(e) => setNewDealTitle(e.target.value)} className="ui-input" placeholder="Ex: Dr. House" />

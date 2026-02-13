@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { SectionLoader } from "@/components/Common";
 import { ChatConversationView } from "@/components/chat/chat-conversation-view";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCached, setCached } from "@/lib/perf/cache";
@@ -37,7 +38,9 @@ type ChatBootstrapSnapshot = {
   actor: ChatActor;
   title: string;
   initialMessages: Message[];
+  conversationType: "dm" | "group";
   canDelete: boolean;
+  canManageMembers: boolean;
 };
 
 const INITIAL_MESSAGES_LIMIT = 60;
@@ -69,7 +72,9 @@ export function ChatConversationBootstrap({ conversationId }: ChatConversationBo
   const [title, setTitle] = useState<string>("Conversation");
   const [initialMessages, setInitialMessages] = useState<Message[]>([]);
   const [mentionParticipants, setMentionParticipants] = useState<MentionParticipant[]>(SPECIAL_MENTIONS);
+  const [conversationType, setConversationType] = useState<"dm" | "group">("dm");
   const [canDelete, setCanDelete] = useState(false);
+  const [canManageMembers, setCanManageMembers] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   useSectionPerf("chat", isLoading);
@@ -112,7 +117,9 @@ export function ChatConversationBootstrap({ conversationId }: ChatConversationBo
         setActor(liveActorOverride);
         setTitle(cachedSnapshot.title);
         setInitialMessages(cachedSnapshot.initialMessages);
+        setConversationType(cachedSnapshot.conversationType);
         setCanDelete(cachedSnapshot.canDelete);
+        setCanManageMembers(cachedSnapshot.canManageMembers);
         setMentionParticipants(SPECIAL_MENTIONS);
         setError(null);
         setIsLoading(false);
@@ -146,6 +153,8 @@ export function ChatConversationBootstrap({ conversationId }: ChatConversationBo
       const header = conversationData as ConversationHeader;
       const actorRole = profile?.role?.toLowerCase() ?? null;
       const canDeleteConversation = header.created_by === user.id || actorRole === "admin";
+      const canManageConversationMembers =
+        header.type === "group" && (header.created_by === user.id || actorRole === "admin");
       const parsedMessages = (messagesData ?? [])
         .map((row) => MessageSchema.parse(row))
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -155,15 +164,19 @@ export function ChatConversationBootstrap({ conversationId }: ChatConversationBo
       setActor(actorValue);
       setTitle(conversationTitle(header.type, header.name));
       setInitialMessages(parsedMessages);
+      setConversationType(header.type);
       setMentionParticipants(SPECIAL_MENTIONS);
       setCanDelete(canDeleteConversation);
+      setCanManageMembers(canManageConversationMembers);
       setError(null);
       setIsLoading(false);
       setCached(snapshotCacheKey, {
         actor: actorValue,
         title: conversationTitle(header.type, header.name),
         initialMessages: parsedMessages,
+        conversationType: header.type,
         canDelete: canDeleteConversation,
+        canManageMembers: canManageConversationMembers,
       });
 
       // Load mention candidates in background so messages render immediately.
@@ -215,12 +228,7 @@ export function ChatConversationBootstrap({ conversationId }: ChatConversationBo
 
   if (isLoading) {
     return (
-      <section className="ui-state-box ui-state-loading motion-fade-up flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-md text-sm">
-        <div className="text-center">
-          <p className="ui-state-title">Chargement de la conversation...</p>
-          <p className="ui-state-text">Récupération des messages et participants.</p>
-        </div>
-      </section>
+      <SectionLoader className="motion-fade-up flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-md text-sm" />
     );
   }
 
@@ -242,7 +250,9 @@ export function ChatConversationBootstrap({ conversationId }: ChatConversationBo
       initialMessages={initialMessages}
       mentionParticipants={mentionParticipants}
       title={title}
+      conversationType={conversationType}
       canDelete={canDelete}
+      canManageMembers={canManageMembers}
     />
   );
 }

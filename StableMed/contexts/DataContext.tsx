@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Profile, Team } from '../types';
 import { useAuth } from './AuthContext';
@@ -45,7 +45,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [selectedTeamId, setSelectedTeamId] = useState<string | 'all'>('all');
   const [selectedUserId, setSelectedUserId] = useState<string | 'all'>('all');
   const [loadingFilters, setLoadingFilters] = useState(true);
-  const lastLoadedKeyRef = useRef<string | null>(null);
+  const normalizedRole = (profile?.role ?? '').trim().toLowerCase();
+  const isAdmin = normalizedRole === 'admin';
+  const isManager = normalizedRole === 'manager';
 
   // Initialize filters based on Role
   useEffect(() => {
@@ -83,24 +85,42 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!profile) return;
     perfStart('data.filters');
     const cacheKey = `${profile.role}:${profile.team_id ?? 'none'}:${profile.id}`;
-    if (lastLoadedKeyRef.current === cacheKey && users.length > 0) {
-      perfEnd('data.filters');
-      return;
-    }
 
     setLoadingFilters(true);
 
-    if (filterCache && filterCache.key === cacheKey && Date.now() - filterCache.at < FILTER_CACHE_TTL_MS) {
+    if (isAdmin) {
+      try {
+        const { error } = await supabase.rpc('sync_missing_profiles_from_auth');
+        if (error) {
+          const code = (error as { code?: string }).code ?? '';
+          const missingRpc =
+            code === 'PGRST202' ||
+            code === '42883' ||
+            String(error.message || '').toLowerCase().includes('not found');
+          if (!missingRpc) {
+            console.warn('sync_missing_profiles_from_auth failed:', error.message);
+          }
+        }
+      } catch (error) {
+        console.warn('sync_missing_profiles_from_auth unexpected error:', error);
+      }
+    }
+
+    if (
+      !isAdmin &&
+      filterCache &&
+      filterCache.key === cacheKey &&
+      Date.now() - filterCache.at < FILTER_CACHE_TTL_MS
+    ) {
       setTeams(filterCache.teams);
       setUsers(filterCache.users);
-      lastLoadedKeyRef.current = cacheKey;
       setLoadingFilters(false);
       perfEnd('data.filters');
       return;
     }
     
     const loadTeams = async () => {
-      if (profile.role === 'admin') {
+      if (isAdmin) {
         return await supabase.from('teams').select('id,name,created_at').order('name');
       }
       if (profile.team_id) {
@@ -110,13 +130,18 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const loadUsers = async () => {
-      if (profile.role === 'admin') {
+      const { data, error } = await supabase.rpc('get_visible_profiles');
+      if (!error) {
+        return { data: (data ?? []) as Profile[], error: null };
+      }
+
+      if (isAdmin) {
         return await supabase
           .from('profiles')
           .select('id,email,full_name,avatar_url,role,team_id,created_at')
           .order('full_name');
       }
-      if (profile.role === 'manager' && profile.team_id) {
+      if (isManager && profile.team_id) {
         return await supabase
           .from('profiles')
           .select('id,email,full_name,avatar_url,role,team_id,created_at')
@@ -136,7 +161,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const nextUsers = ((usersResult.data ?? []) as Profile[]);
     setTeams(nextTeams);
     setUsers(nextUsers);
-    lastLoadedKeyRef.current = cacheKey;
     filterCache = {
       key: cacheKey,
       at: Date.now(),
@@ -145,10 +169,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     // Default Selection Logic
-    if (profile.role === 'commercial') {
+    if (normalizedRole === 'commercial') {
         setSelectedUserId(profile.id); // Locked to self
         if (profile.team_id) setSelectedTeamId(profile.team_id);
-    } else if (profile.role === 'manager' && profile.team_id) {
+    } else if (isManager && profile.team_id) {
         setSelectedTeamId(profile.team_id); // Locked to own team
     }
 

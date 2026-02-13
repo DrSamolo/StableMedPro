@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ComponentType } from "react";
+import { SectionLoader } from "@/components/Common";
 
 type DashboardComponent = ComponentType<Record<string, never>>;
 
@@ -39,12 +40,7 @@ export default function DashboardPage() {
 
   if (!Dashboard) {
     return (
-      <div className="ui-state-box ui-state-loading flex min-h-[280px] items-center justify-center text-sm">
-        <div className="ui-state-stack">
-          <p className="ui-state-title">Chargement du dashboard...</p>
-          <p className="ui-state-text">Préparation des indicateurs principaux.</p>
-        </div>
-      </div>
+      <SectionLoader className="flex min-h-[280px] items-center justify-center text-sm" />
     );
   }
 

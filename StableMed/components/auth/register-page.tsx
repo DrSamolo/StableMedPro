@@ -1,7 +1,9 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Card } from '@/components/Common';
-import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { BrandLockup, BrandMark, Card } from '@/components/Common';
+import { Loader2, AlertTriangle } from 'lucide-react';
 import { Invitation } from '@/types';
 
 interface RegisterProps {
@@ -60,24 +62,25 @@ const Register: React.FC<RegisterProps> = ({ token }) => {
           if (signUpError) throw signUpError;
           if (!data.user) throw new Error("Erreur création utilisateur.");
 
-          // 2. Create Profile & Assign Role/Team (Manual patch since trigger sets default)
-          // We update the profile created by the trigger
+          // 2. Ensure profile exists and apply invitation role/team.
+          // Upsert makes this robust even if DB trigger is missing.
           const { error: profileError } = await supabase
             .from('profiles')
-            .update({
+            .upsert({
+                id: data.user.id,
+                email: invitation.email,
                 role: invitation.role,
                 team_id: invitation.team_id,
                 full_name: fullName
-            })
-            .eq('id', data.user.id);
+            }, { onConflict: 'id' });
           
-          if (profileError) console.warn("Profile update warning:", profileError);
+          if (profileError) throw profileError;
 
           // 3. Mark invitation as used
-          await supabase
-            .from('invitations')
-            .update({ used_at: new Date().toISOString() })
-            .eq('id', invitation.id);
+          const { error: consumeError } = await supabase.rpc('consume_invitation_token', {
+            p_token: invitation.token,
+          });
+          if (consumeError) throw consumeError;
 
           alert("Compte créé avec succès ! Vous allez être redirigé.");
           window.location.href = '/';
@@ -89,19 +92,34 @@ const Register: React.FC<RegisterProps> = ({ token }) => {
   };
 
   if (loading) {
-      return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="animate-spin text-primary" /></div>;
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="flex flex-col items-center gap-3">
+            <BrandMark className="h-11 w-11 animate-[spin_1.15s_linear_infinite] shadow-card" />
+            <p className="text-sm text-secondary">Vérification de l&apos;invitation...</p>
+          </div>
+        </div>
+      );
   }
 
   if (error) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
             <div className="max-w-md w-full text-center">
-                <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-rose-100">
-                    <AlertTriangle size={24} />
+                <BrandLockup compact className="justify-center mb-6" />
+                <h1 className="text-2xl font-semibold text-primary tracking-tight mb-2">StableMed</h1>
+                <p className="text-secondary mb-6 text-sm">CRM médical sécurisé sur invitation</p>
+
+                <div className="mb-5 rounded-md border border-rose-200/70 bg-rose-50/50 px-3 py-2 text-left text-sm text-rose-700">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle size={14} />
+                    <span className="font-medium">Invitation invalide ou expirée</span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-rose-700/90">{error}</p>
                 </div>
-                <h2 className="text-xl font-medium text-primary mb-2">Invitation Invalide</h2>
-                <p className="text-secondary mb-6">{error}</p>
-                <a href="/" className="text-sm font-medium text-primary hover:underline">Retour à l'accueil</a>
+                <p className="text-sm text-secondary">
+                  Demandez un nouveau lien d&apos;invitation à votre administrateur.
+                </p>
             </div>
         </div>
       );
@@ -111,14 +129,15 @@ const Register: React.FC<RegisterProps> = ({ token }) => {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
          <div className="text-center mb-8">
-            <h1 className="text-2xl font-semibold text-primary tracking-tight">Bienvenue</h1>
-            <p className="text-secondary mt-2 text-sm">Finalisez votre compte pour rejoindre l'équipe.</p>
+            <BrandLockup compact className="justify-center mb-4" />
+            <p className="text-base font-medium text-primary">Créer votre compte</p>
+            <p className="text-secondary mt-1 text-sm">Finalisez votre inscription pour rejoindre votre équipe.</p>
         </div>
 
         <Card>
             <form onSubmit={handleRegister} className="space-y-4">
-                <div className="p-3 bg-blue-50 border border-blue-100 rounded text-sm text-blue-800 mb-4">
-                    Invitation pour <span className="font-medium">{invitation?.email}</span>
+                <div className="rounded-md border border-border bg-zinc-50 px-3 py-2.5 text-sm text-secondary mb-4">
+                    Invitation pour <span className="font-medium text-primary">{invitation?.email}</span>
                 </div>
 
                 <div>
@@ -149,8 +168,9 @@ const Register: React.FC<RegisterProps> = ({ token }) => {
                 <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full py-2.5 bg-primary text-white text-sm font-medium rounded-md hover:bg-black transition-all disabled:opacity-70 mt-4"
+                    className="w-full py-2.5 bg-primary text-white text-sm font-medium rounded-md hover:bg-black transition-all shadow-subtle disabled:opacity-70 mt-4 inline-flex items-center justify-center gap-2"
                 >
+                    {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : null}
                     {isSubmitting ? 'Création...' : 'Créer mon compte'}
                 </button>
             </form>

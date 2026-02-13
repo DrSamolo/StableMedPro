@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { SectionTitle, Modal, SlideOver, CustomSelect } from '@/components/Common';
+import { SectionLoader, SectionTitle, Modal, SlideOver, CustomSelect } from '@/components/Common';
 import { Training } from '@/types';
-import { Search, Plus, Trash2, Loader2, Image as ImageIcon, X, FileText, Banknote, User, Users, BookOpen, Monitor, GraduationCap, Briefcase, Building, ChevronRight, Clock } from 'lucide-react';
+import { Search, Plus, Trash2, Loader2, Image as ImageIcon, X, FileText, Banknote, User, Users, BookOpen, Monitor, GraduationCap, Briefcase, Building, ChevronRight, Clock, List, LayoutGrid, Link2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotification } from '@/contexts/NotificationContext';
@@ -32,6 +32,15 @@ const Catalog: React.FC = () => {
   const [selectedTarget, setSelectedTarget] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
   const [selectedOrg, setSelectedOrg] = useState('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [isAssociateModalOpen, setIsAssociateModalOpen] = useState(false);
+  const [trainingToAssociate, setTrainingToAssociate] = useState<Training | null>(null);
+  const [associateTargetType, setAssociateTargetType] = useState<'lead' | 'deal'>('lead');
+  const [associateTargetId, setAssociateTargetId] = useState('');
+  const [isAssociating, setIsAssociating] = useState(false);
+  const [isLoadingAssociationTargets, setIsLoadingAssociationTargets] = useState(false);
+  const [assignableLeads, setAssignableLeads] = useState<Array<{ id: string; name: string; email?: string }>>([]);
+  const [assignableDeals, setAssignableDeals] = useState<Array<{ id: string; title: string }>>([]);
   
   // Create Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -204,22 +213,28 @@ const Catalog: React.FC = () => {
   };
 
   const handleCreateTraining = async () => {
-    if (!user || !newTraining.title || !newTraining.price) {
-        addNotification('error', 'Le titre et le prix sont obligatoires.');
+    if (!user || !newTraining.title?.trim()) {
+        addNotification('error', 'Le titre est obligatoire.');
         return;
     }
     setIsSubmitting(true);
+    const normalizedPrice = Number(newTraining.price ?? 0);
+    const normalizedCompensation = Number(newTraining.compensation ?? 0);
+    if (Number.isNaN(normalizedPrice) || Number.isNaN(normalizedCompensation)) {
+        addNotification('error', 'Prix/indemnité invalides.');
+        setIsSubmitting(false);
+        return;
+    }
 
     // Prepare full data object
     const fullTrainingData = {
-        user_id: user.id,
         title: newTraining.title,
         target_audience: newTraining.target_audience,
         training_type: newTraining.training_type,
         format: newTraining.format,
         duration_total: newTraining.duration_total,
-        price: newTraining.price,
-        compensation: newTraining.compensation,
+        price: normalizedPrice,
+        compensation: normalizedCompensation,
         funder: newTraining.funder,
         organization: newTraining.organization,
         reference: newTraining.reference,
@@ -242,7 +257,6 @@ const Catalog: React.FC = () => {
                 // Attempt 2: Minimal insert (Fallback)
                 // We only insert fields that are guaranteed to exist in the base table
                 const { error: fallbackError } = await supabase.from('trainings').insert([{
-                    user_id: user.id,
                     title: newTraining.title,
                     // Skipping new fields to avoid crash
                 }]);
@@ -317,6 +331,91 @@ const Catalog: React.FC = () => {
       setIsDeleteModalOpen(true);
   };
 
+  const loadAssociationTargets = async () => {
+    setIsLoadingAssociationTargets(true);
+    try {
+      const [leadsRes, dealsRes] = await Promise.all([
+        supabase.from('leads').select('id,name,email').order('created_at', { ascending: false }).limit(300),
+        supabase.from('deals').select('id,title').order('created_at', { ascending: false }).limit(300),
+      ]);
+
+      if (leadsRes.error) throw leadsRes.error;
+      if (dealsRes.error) throw dealsRes.error;
+
+      setAssignableLeads((leadsRes.data ?? []) as Array<{ id: string; name: string; email?: string }>);
+      setAssignableDeals((dealsRes.data ?? []) as Array<{ id: string; title: string }>);
+    } catch (error: any) {
+      addNotification('error', `Erreur chargement des cibles: ${error.message}`);
+    } finally {
+      setIsLoadingAssociationTargets(false);
+    }
+  };
+
+  const handleOpenAssociateModal = async (training: Training, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setTrainingToAssociate(training);
+    setAssociateTargetType('lead');
+    setAssociateTargetId('');
+    setIsAssociateModalOpen(true);
+    await loadAssociationTargets();
+  };
+
+  const handleAssociateTraining = async () => {
+    if (!trainingToAssociate || !associateTargetId) {
+      addNotification('warning', 'Sélectionnez une cible à associer.');
+      return;
+    }
+    setIsAssociating(true);
+    try {
+      if (associateTargetType === 'deal') {
+        const { data: existing, error: existingError } = await supabase
+          .from('deal_trainings')
+          .select('id')
+          .eq('deal_id', associateTargetId)
+          .eq('training_id', trainingToAssociate.id)
+          .limit(1);
+        if (existingError) throw existingError;
+        if (existing && existing.length > 0) {
+          addNotification('info', 'Cette formation est déjà associée à cette opportunité.');
+          return;
+        }
+
+        const { error } = await supabase.from('deal_trainings').insert({
+          deal_id: associateTargetId,
+          training_id: trainingToAssociate.id,
+        });
+        if (error) throw error;
+      } else {
+        const { data: existing, error: existingError } = await supabase
+          .from('lead_trainings')
+          .select('id')
+          .eq('lead_id', associateTargetId)
+          .eq('training_id', trainingToAssociate.id)
+          .limit(1);
+        if (existingError) throw existingError;
+        if (existing && existing.length > 0) {
+          addNotification('info', 'Cette formation est déjà associée à ce lead.');
+          return;
+        }
+
+        const { error } = await supabase.from('lead_trainings').insert({
+          lead_id: associateTargetId,
+          training_id: trainingToAssociate.id,
+        });
+        if (error) throw error;
+      }
+
+      addNotification('success', `Formation associée (${associateTargetType === 'deal' ? 'opportunité' : 'lead'}).`);
+      setIsAssociateModalOpen(false);
+      setTrainingToAssociate(null);
+    } catch (error: any) {
+      addNotification('error', `Association impossible: ${error.message}`);
+    } finally {
+      setIsAssociating(false);
+    }
+  };
+
   // Filtering Logic
   const filteredTrainings = trainings.filter(t => {
       // Safe checks for potentially missing fields in old data
@@ -351,7 +450,6 @@ const Catalog: React.FC = () => {
       { value: 'all', label: 'Tous organismes' },
       ...uniqueOrgs.map(t => ({ value: t, label: t }))
   ];
-
   const getFormatIcon = (format: string) => {
       switch(format) {
           case 'Présentiel': return <Users size={14} />;
@@ -371,7 +469,7 @@ const Catalog: React.FC = () => {
                 {canManageCatalog && (
                   <button 
                       onClick={() => setIsModalOpen(true)}
-                      className="ui-btn ui-btn-primary micro-interaction"
+                      className="ui-btn ui-btn-primary"
                   >
                       <Plus size={16} /> Nouvelle Formation
                   </button>
@@ -380,70 +478,82 @@ const Catalog: React.FC = () => {
         }
        />
 
-        {/* 1. Filters Group - Top Row */}
-        <div className="flex flex-wrap items-center gap-3 mb-3">
-            <CustomSelect 
-                value={selectedTarget}
-                onChange={setSelectedTarget}
-                options={targetOptions}
-                icon={Briefcase}
-                placeholder="Public"
-                minWidth="150px"
-            />
-            
-            <CustomSelect 
-                value={selectedType}
-                onChange={setSelectedType}
-                options={typeOptions}
-                icon={BookOpen}
-                placeholder="Type"
-                minWidth="150px"
-            />
+       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+              <CustomSelect 
+                  value={selectedTarget}
+                  onChange={setSelectedTarget}
+                  options={targetOptions}
+                  icon={Briefcase}
+                  placeholder="Public"
+                  minWidth="150px"
+              />
+              
+              <CustomSelect 
+                  value={selectedType}
+                  onChange={setSelectedType}
+                  options={typeOptions}
+                  icon={BookOpen}
+                  placeholder="Type"
+                  minWidth="150px"
+              />
 
-            <CustomSelect 
-                value={selectedOrg}
-                onChange={setSelectedOrg}
-                options={orgOptions}
-                icon={Building}
-                placeholder="Organisme"
-                minWidth="150px"
-            />
+              <CustomSelect 
+                  value={selectedOrg}
+                  onChange={setSelectedOrg}
+                  options={orgOptions}
+                  icon={Building}
+                  placeholder="Organisme"
+                  minWidth="150px"
+              />
 
-            {(selectedTarget !== 'all' || selectedType !== 'all' || selectedOrg !== 'all') && (
-                <button 
-                    onClick={() => { setSelectedTarget('all'); setSelectedType('all'); setSelectedOrg('all'); }}
-                    className="ui-btn ui-btn-ghost h-9 px-3 py-0 text-xs ml-1"
-                >
-                    Effacer
-                </button>
-            )}
-        </div>
+              {(selectedTarget !== 'all' || selectedType !== 'all' || selectedOrg !== 'all') && (
+                  <button 
+                      onClick={() => { setSelectedTarget('all'); setSelectedType('all'); setSelectedOrg('all'); }}
+                      className="ui-btn ui-btn-ghost h-9 px-3 py-0 text-xs"
+                  >
+                      Effacer
+                  </button>
+              )}
 
-       {/* 2. Search Bar - Bottom Row, Left Aligned, Minimalist */}
-       <div className="w-full max-w-sm mb-10">
-            <div className="relative">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                    <Search size={15} className="text-gray-400" />
-                </div>
-                <input 
-                    type="text" 
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Rechercher..." 
-                    className="h-10 w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 pl-10 pr-4 text-sm text-zinc-900 outline-none transition focus:border-zinc-300 focus:bg-white focus-visible:shadow-[0_0_0_3px_rgba(24,24,27,0.08)]"
-                />
+          </div>
+
+          <div className="inline-flex rounded-md border border-zinc-200 bg-white p-1">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`ui-focus inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition ${
+                viewMode === 'grid' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'
+              }`}
+            >
+              <LayoutGrid size={14} /> Cartes
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`ui-focus inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium transition ${
+                viewMode === 'table' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'
+              }`}
+            >
+              <List size={14} /> Table
+            </button>
+          </div>
+       </div>
+
+       <div className="relative w-full max-w-sm mb-10">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <Search size={15} className="text-gray-400" />
             </div>
+            <input 
+                type="text" 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Rechercher..." 
+                className="h-10 w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 pl-10 pr-4 text-sm text-zinc-900 outline-none transition focus:border-zinc-300 focus:bg-white focus-visible:shadow-[0_0_0_3px_rgba(24,24,27,0.08)]"
+            />
        </div>
 
        {/* Catalog Grid */}
        {loading ? (
-           <div className="ui-state-box ui-state-loading flex justify-center py-20">
-             <div className="ui-state-stack">
-               <Loader2 className="animate-spin text-gray-400" />
-               <p className="ui-state-title">Chargement du catalogue...</p>
-               <p className="ui-state-text">Préparation des formations disponibles.</p>
-             </div>
-           </div>
+           <SectionLoader className="py-20" />
        ) : filteredTrainings.length === 0 ? (
            <div className="ui-state-box ui-state-empty flex flex-col items-center justify-center border-dashed py-24">
                <Search size={32} className="text-gray-300 mb-3" />
@@ -455,7 +565,7 @@ const Catalog: React.FC = () => {
                    <button onClick={() => setIsModalOpen(true)} className="mt-4 text-primary text-sm font-medium hover:underline">Ajouter une première formation</button>
                )}
            </div>
-       ) : (
+       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {filteredTrainings.map((training, idx) => (
                     <div 
@@ -524,7 +634,139 @@ const Catalog: React.FC = () => {
                     </div>
                 ))}
         </div>
+       ) : (
+        <div className="overflow-x-auto rounded-md border border-border bg-white">
+          <table className="ui-table min-w-[880px] text-left text-sm">
+            <thead className="border-b border-border bg-zinc-50/60">
+              <tr>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Formation</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Type</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Public</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Organisme</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Format</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 text-right">Prix</th>
+                {canManageCatalog ? <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 text-right">Actions</th> : null}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filteredTrainings.map((training) => (
+                <tr
+                  key={training.id}
+                  className="ui-table-row cursor-pointer hover:bg-zinc-50/50"
+                  onClick={() => setSelectedTraining(training)}
+                >
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-14 shrink-0 overflow-hidden rounded border border-zinc-200 bg-zinc-100">
+                        {training.image ? (
+                          <img src={training.image} alt={training.title} className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <ImageIcon size={14} className="text-zinc-400" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-primary">{training.title}</p>
+                        <p className="truncate text-xs text-secondary">{training.reference || 'Sans référence'}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-secondary">{training.training_type || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-secondary">{training.target_audience || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-secondary">{training.organization || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-secondary">{training.format || '-'}</td>
+                  <td className="px-4 py-3 text-right text-sm font-medium text-primary">{training.price ?? 0} €</td>
+                  {canManageCatalog ? (
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={(e) => handleOpenAssociateModal(training, e)}
+                          className="ui-focus rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
+                          title="Associer cette formation"
+                        >
+                          <Link2 size={15} />
+                        </button>
+                        <button
+                          onClick={(e) => handleRequestDelete(training, e)}
+                          className="ui-focus rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-rose-50 hover:text-rose-600"
+                          title="Supprimer la formation"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  ) : null}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
        )}
+
+       <Modal isOpen={isAssociateModalOpen} onClose={() => setIsAssociateModalOpen(false)} maxWidth="lg">
+         <div className="w-full rounded-md bg-surface p-6">
+           <h3 className="mb-2 text-lg font-medium text-primary">Associer une formation</h3>
+           <p className="mb-5 text-sm text-secondary">
+             {trainingToAssociate ? `Formation: ${trainingToAssociate.title}` : 'Sélectionnez une cible'}
+           </p>
+
+           <div className="mb-4 inline-flex w-full rounded-md border border-zinc-200 bg-white p-1">
+             <button
+               onClick={() => { setAssociateTargetType('lead'); setAssociateTargetId(''); }}
+               className={`ui-focus flex-1 rounded px-3 py-2 text-xs font-medium transition ${associateTargetType === 'lead' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'}`}
+             >
+               Lead
+             </button>
+             <button
+               onClick={() => { setAssociateTargetType('deal'); setAssociateTargetId(''); }}
+               className={`ui-focus flex-1 rounded px-3 py-2 text-xs font-medium transition ${associateTargetType === 'deal' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'}`}
+             >
+               Opportunité
+             </button>
+           </div>
+
+           <div className="mb-6">
+             <label className="ui-field-label">{associateTargetType === 'lead' ? 'Lead cible' : 'Opportunité cible'}</label>
+             {isLoadingAssociationTargets ? (
+               <div className="ui-input flex h-10 items-center gap-2 text-sm text-secondary">
+                 <Loader2 size={14} className="animate-spin" /> Chargement...
+               </div>
+             ) : (
+               <select
+                 value={associateTargetId}
+                 onChange={(e) => setAssociateTargetId(e.target.value)}
+                 className="ui-input"
+               >
+                 <option value="">Sélectionner...</option>
+                 {associateTargetType === 'lead'
+                   ? assignableLeads.map((lead) => (
+                       <option key={lead.id} value={lead.id}>
+                         {lead.name}{lead.email ? ` (${lead.email})` : ''}
+                       </option>
+                     ))
+                   : assignableDeals.map((deal) => (
+                       <option key={deal.id} value={deal.id}>
+                         {deal.title}
+                       </option>
+                     ))}
+               </select>
+             )}
+           </div>
+
+           <div className="flex justify-end gap-3">
+             <button onClick={() => setIsAssociateModalOpen(false)} className="ui-btn ui-btn-secondary">Annuler</button>
+             <button
+               onClick={handleAssociateTraining}
+               disabled={isAssociating || !associateTargetId || isLoadingAssociationTargets}
+               className="ui-btn ui-btn-primary"
+             >
+               {isAssociating ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
+               Associer
+             </button>
+           </div>
+         </div>
+       </Modal>
 
        {/* DELETE CONFIRMATION MODAL - MONOCHROME */}
        <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)}>
@@ -675,7 +917,6 @@ const Catalog: React.FC = () => {
        </SlideOver>
 
        {/* Create Modal - Expanded for new fields */}
-       {canManageCatalog && (
        <SlideOver isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Nouvelle Formation" maxWidth="xl">
                 <p className="mb-5 text-sm text-secondary">Ajoutez une fiche formation structurée et lisible.</p>
                 
@@ -827,7 +1068,7 @@ const Catalog: React.FC = () => {
                     </div>
                 </div>
        </SlideOver>
-       )}
+
     </div>
   );
 };

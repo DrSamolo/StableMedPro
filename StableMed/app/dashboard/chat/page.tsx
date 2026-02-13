@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { SectionLoader } from "@/components/Common";
 import { supabase } from "@/lib/supabase";
 
 type ConversationSummaryRow = {
@@ -48,12 +49,7 @@ export default function ChatIndexPage() {
 
   if (isLoading) {
     return (
-      <section className="ui-state-box ui-state-loading motion-fade-up flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-md text-sm">
-        <div className="text-center">
-          <p className="ui-state-title">Chargement des conversations...</p>
-          <p className="ui-state-text">Préparation de votre espace de discussion.</p>
-        </div>
-      </section>
+      <SectionLoader className="motion-fade-up flex min-h-[calc(100vh-9rem)] items-center justify-center rounded-md text-sm" />
     );
   }
 
