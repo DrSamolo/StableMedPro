@@ -25,3 +25,4 @@ StableMed/.env
 *.njsproj
 *.sln
 *.sw?
+.next/
