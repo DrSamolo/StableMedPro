@@ -628,14 +628,14 @@ const Settings: React.FC = () => {
           setTestResults([...results] as any);
           await wait(500);
 
-          const mockLeads: Partial<Lead>[] = [
+          const sampleLeads: Partial<Lead>[] = [
               { id: '1', user_id: 'user_A', assignee: { id: 'user_A', team_id: 'team_alpha' } as Profile } as any,
               { id: '2', user_id: 'user_B', assignee: { id: 'user_B', team_id: 'team_beta' } as Profile } as any,
           ];
 
           // Simulation: Commercial A should only see lead 1
           const commercialFilter = (lead: any) => lead.user_id === 'user_A';
-          const filteredCommercial = mockLeads.filter(commercialFilter);
+          const filteredCommercial = sampleLeads.filter(commercialFilter);
           
           if (filteredCommercial.length === 1 && filteredCommercial[0].id === '1') {
               results[0] = { name: 'Logique de Filtrage (Rôles)', status: 'success', message: 'Le filtre Commercial isole correctement les données.' };

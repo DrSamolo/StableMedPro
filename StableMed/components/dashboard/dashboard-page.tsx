@@ -15,6 +15,17 @@ import { useSectionPerf } from '@/lib/perf/use-section-perf';
 
 const DASHBOARD_CACHE_TTL_MS = 30_000;
 
+const parseAmount = (value: unknown): number => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return 0;
+};
+
+const normalizeStage = (stage: unknown): string => (typeof stage === 'string' ? stage.trim().toLowerCase() : '');
+
 const StatCard: React.FC<{ kpi: KpiData; icon: React.ReactNode; index: number }> = ({ kpi, icon, index }) => (
   <div style={{ animationDelay: `${index * 60}ms` }}>
     <Card className="h-full border-slate-200 bg-white">
@@ -129,11 +140,14 @@ const Dashboard: React.FC = () => {
         const usersById = new Map(users.map((u) => [u.id, u]));
 
         // --- Calculate KPIs ---
-        const wonDeals = filteredDeals.filter(d => d.stage === 'won');
-        const activeDeals = filteredDeals.filter(d => d.stage !== 'won' && d.stage !== 'lost'); 
-        
-        const totalRevenue = wonDeals.reduce((acc, curr) => acc + curr.amount, 0);
-        const pipelineValue = activeDeals.reduce((acc, curr) => acc + curr.amount, 0);
+        const wonDeals = filteredDeals.filter((d) => normalizeStage(d.stage) === 'won');
+        const activeDeals = filteredDeals.filter((d) => {
+          const stage = normalizeStage(d.stage);
+          return stage !== 'won' && stage !== 'lost';
+        });
+
+        const totalRevenue = wonDeals.reduce((acc, curr) => acc + parseAmount(curr.amount), 0);
+        const pipelineValue = activeDeals.reduce((acc, curr) => acc + parseAmount(curr.amount), 0);
 
         setKpis([
             { label: 'Chiffre d\'affaires', value: `${totalRevenue.toLocaleString()}`, trend: 100, trendDirection: 'up' }, // Removed € for clean counting
@@ -152,7 +166,7 @@ const Dashboard: React.FC = () => {
         wonDeals.forEach(deal => {
             const date = new Date(deal.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
             if (chartMap.has(date)) {
-                chartMap.set(date, (chartMap.get(date) || 0) + deal.amount);
+                chartMap.set(date, (chartMap.get(date) || 0) + parseAmount(deal.amount));
             }
         });
         setChartData(Array.from(chartMap).map(([name, value]) => ({ name, value })));
@@ -160,7 +174,7 @@ const Dashboard: React.FC = () => {
         // --- Top Commercials (Filtered Scope) ---
         const commercialStats: Record<string, { name: string; count: number; revenue: number }> = {};
         filteredDeals.forEach((deal) => {
-          if (deal.stage !== 'won' || !deal.owner_id) return;
+          if (normalizeStage(deal.stage) !== 'won' || !deal.owner_id) return;
           const owner = usersById.get(deal.owner_id);
           const ownerName = owner?.full_name?.trim() || owner?.email?.split('@')[0] || 'Commercial';
 
@@ -169,7 +183,7 @@ const Dashboard: React.FC = () => {
           }
 
           commercialStats[deal.owner_id].count += 1;
-          commercialStats[deal.owner_id].revenue += deal.amount || 0;
+          commercialStats[deal.owner_id].revenue += parseAmount(deal.amount);
         });
         const sortedCommercials = Object.values(commercialStats)
           .sort((a, b) => b.revenue - a.revenue)

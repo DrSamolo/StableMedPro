@@ -54,6 +54,14 @@ Run SQL migrations in this order:
 27. `supabase/migrations/20260213_step5_13_chat_access_matrix_and_all_visibility.sql`
 28. `supabase/migrations/20260213_step5_14_security_performance_hardening.sql`
 29. `supabase/migrations/20260213_step5_15_bulk_leads_ops_and_edge_auth.sql`
+30. `supabase/migrations/20260213_step5_16_purge_mock_leads_data_rpc.sql`
+31. `supabase/migrations/20260213_step5_17_wipe_crm_runtime_data_rpc.sql`
+
+To purge perf/mock leads after migrations (admin only):
+`select public.purge_mock_leads_data('PURGE_MOCK_LEADS');`
+
+To wipe all CRM runtime data while keeping structure/users/permissions (admin only):
+`select public.wipe_crm_runtime_data('WIPE_CRM_RUNTIME_DATA');`
 
 ## Handoff and Maintenance Notes
 
