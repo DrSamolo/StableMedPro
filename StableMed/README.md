@@ -50,3 +50,18 @@ Run SQL migrations in this order:
 23. `supabase/migrations/20260213_step5_9_delete_user_secure_hardening.sql`
 24. `supabase/migrations/20260213_step5_10_consume_invitation_token_rpc.sql`
 25. `supabase/migrations/20260213_step5_11_delete_user_secure_reassign_audit_logs.sql`
+26. `supabase/migrations/20260213_step5_12_lead_profession_options_rpc.sql`
+27. `supabase/migrations/20260213_step5_13_chat_access_matrix_and_all_visibility.sql`
+28. `supabase/migrations/20260213_step5_14_security_performance_hardening.sql`
+29. `supabase/migrations/20260213_step5_15_bulk_leads_ops_and_edge_auth.sql`
+
+## Handoff and Maintenance Notes
+
+- Current handoff context (pre-prod state, hardening changes, upgrade checklist):
+  - `docs/agent_handoff_2026-02-13.md`
+- Security audit:
+  - `docs/security_audit_2026-02-13.md`
+- 100k load plan:
+  - `docs/load_plan_100k_leads_2026-02-13.md`
+- API foundation:
+  - `docs/api_foundation_2026-02-13.md`

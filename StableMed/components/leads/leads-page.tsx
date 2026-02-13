@@ -635,7 +635,6 @@ const Leads: React.FC = () => {
 
   const executeBulkAssign = async () => {
     setIsProcessingBulk(true);
-    let distributionPlan: { leadId: string, userId: string }[] = [];
     let targetLeadIds: string[] = [];
 
     try {
@@ -655,16 +654,12 @@ const Leads: React.FC = () => {
             targetUserIds = bulkTargetUsers;
         }
 
-        distributionPlan = targetLeadIds.map((leadId, index) => {
-            const assigneeId = targetUserIds[index % targetUserIds.length]; 
-            return { leadId, userId: assigneeId };
+        const { data, error } = await supabase.rpc('bulk_reassign_leads', {
+          p_lead_ids: targetLeadIds,
+          p_target_user_ids: targetUserIds,
         });
-
-        const promises = distributionPlan.map(({ leadId, userId }) => 
-            supabase.from('leads').update({ user_id: userId }).eq('id', leadId)
-        );
-
-        await Promise.all(promises);
+        if (error) throw error;
+        const updatedCount = Number(data ?? 0);
 
         // Send Notifications (Simulated broadcast)
         pushAppNotification(
@@ -673,7 +668,7 @@ const Leads: React.FC = () => {
             'info'
         );
 
-        addNotification('success', `${targetLeadIds.length} leads réassignés avec succès.`);
+        addNotification('success', `${updatedCount} leads réassignés avec succès.`);
         setIsBulkAssignModalOpen(false);
         setSelectedLeadIds([]);
         setSelectAllFiltered(false);
@@ -700,26 +695,12 @@ const Leads: React.FC = () => {
       
       setIsProcessingBulk(true);
       try {
-          const idsToDelete = [...targetLeadIds];
-          const chunkSize = 200;
-          let deletedCount = 0;
-
-          addNotification('info', `Suppression en cours (${idsToDelete.length} leads)...`);
-
-          for (let i = 0; i < idsToDelete.length; i += chunkSize) {
-            const chunk = idsToDelete.slice(i, i + chunkSize);
-
-            const { error: commentsError } = await supabase.from('comments').delete().in('lead_id', chunk);
-            if (commentsError && commentsError.code !== '42P01') throw commentsError;
-
-            const { data: deletedRows, error } = await supabase
-              .from('leads')
-              .delete()
-              .in('id', chunk)
-              .select('id');
-            if (error) throw error;
-            deletedCount += deletedRows?.length ?? 0;
-          }
+          addNotification('info', `Suppression en cours (${targetLeadIds.length} leads)...`);
+          const { data, error } = await supabase.rpc('bulk_delete_leads', {
+            p_lead_ids: targetLeadIds,
+          });
+          if (error) throw error;
+          const deletedCount = Number(data ?? 0);
 
           if (deletedCount === 0) {
               addNotification('warning', "Aucun lead supprimé. Vérifiez les droits RLS ou les dépendances.");

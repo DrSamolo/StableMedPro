@@ -10,8 +10,10 @@ interface RegisterProps {
     token: string;
 }
 
+type InvitationSignupContext = Pick<Invitation, 'email' | 'role' | 'team_id' | 'expires_at'>;
+
 const Register: React.FC<RegisterProps> = ({ token }) => {
-  const [invitation, setInvitation] = useState<Invitation | null>(null);
+  const [invitation, setInvitation] = useState<InvitationSignupContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,15 +27,14 @@ const Register: React.FC<RegisterProps> = ({ token }) => {
 
   const checkToken = async () => {
       try {
-          const { data, error } = await supabase
-            .from('invitations')
-            .select('*')
-            .eq('token', token)
-            .is('used_at', null)
-            .single();
-          
+          const { data, error } = await supabase.rpc('get_invitation_signup_context', {
+            p_token: token,
+          });
+
           if (error) throw new Error("Invitation invalide ou expirée.");
-          setInvitation(data);
+          const invitationData = Array.isArray(data) ? data[0] : null;
+          if (!invitationData) throw new Error("Invitation invalide ou expirée.");
+          setInvitation(invitationData as InvitationSignupContext);
       } catch (err: any) {
           setError(err.message);
       } finally {
@@ -78,7 +79,7 @@ const Register: React.FC<RegisterProps> = ({ token }) => {
 
           // 3. Mark invitation as used
           const { error: consumeError } = await supabase.rpc('consume_invitation_token', {
-            p_token: invitation.token,
+            p_token: token,
           });
           if (consumeError) throw consumeError;
 

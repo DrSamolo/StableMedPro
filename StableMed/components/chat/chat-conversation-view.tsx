@@ -201,27 +201,8 @@ export function ChatConversationView({
       });
 
       if (error) {
-        const functionMissing =
-          error.message.includes("Could not find the function public.add_participants_to_group_conversation") ||
-          error.message.includes("schema cache");
-
-        if (!functionMissing) {
-          setAddMembersError(error.message);
-          return;
-        }
-
-        const rows = selectedMemberIds.map((userId) => ({
-          conversation_id: conversationId,
-          user_id: userId,
-        }));
-        const { error: fallbackError } = await supabase
-          .from("conversation_participants")
-          .upsert(rows, { onConflict: "conversation_id,user_id", ignoreDuplicates: true });
-
-        if (fallbackError) {
-          setAddMembersError(fallbackError.message);
-          return;
-        }
+        setAddMembersError(error.message);
+        return;
       }
 
       setModalMembers((previous) => {

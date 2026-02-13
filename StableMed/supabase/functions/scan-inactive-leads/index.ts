@@ -10,12 +10,66 @@ type FetchMode = "last_contact_at" | "last_activity";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const SCAN_INACTIVE_LEADS_TOKEN = Deno.env.get("SCAN_INACTIVE_LEADS_TOKEN");
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
 }
 
 const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+function getBearerToken(request: Request): string | null {
+  const authHeader = request.headers.get("authorization") || request.headers.get("Authorization");
+  if (!authHeader) return null;
+  const [scheme, token] = authHeader.split(" ");
+  if (!scheme || !token || scheme.toLowerCase() !== "bearer") return null;
+  return token.trim();
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payloadBase64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = payloadBase64 + "=".repeat((4 - (payloadBase64.length % 4)) % 4);
+    const json = atob(padded);
+    return JSON.parse(json) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+async function isRequestAuthorized(request: Request): Promise<boolean> {
+  const bearer = getBearerToken(request);
+  const scanTokenHeader = request.headers.get("x-scan-token");
+
+  // Preferred machine-to-machine auth for cron/integration callers.
+  if (SCAN_INACTIVE_LEADS_TOKEN) {
+    if (bearer === SCAN_INACTIVE_LEADS_TOKEN || scanTokenHeader === SCAN_INACTIVE_LEADS_TOKEN) {
+      return true;
+    }
+  }
+
+  if (!bearer) return false;
+
+  const jwtPayload = decodeJwtPayload(bearer);
+  const jwtRole = typeof jwtPayload?.role === "string" ? jwtPayload.role : "";
+  if (jwtRole === "service_role" || jwtRole === "supabase_admin") {
+    return true;
+  }
+
+  const actorId = typeof jwtPayload?.sub === "string" ? jwtPayload.sub : "";
+  if (!actorId) return false;
+
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("role")
+    .eq("id", actorId)
+    .maybeSingle();
+
+  if (error || !data) return false;
+  return data.role === "admin";
+}
 
 async function fetchInactiveLeads(cutoffIso: string): Promise<{
   leads: LeadRow[];
@@ -48,8 +102,16 @@ async function fetchInactiveLeads(cutoffIso: string): Promise<{
   return { leads: (fallback.data ?? []) as LeadRow[], mode: "last_activity" };
 }
 
-Deno.serve(async () => {
+Deno.serve(async (request) => {
   try {
+    const authorized = await isRequestAuthorized(request);
+    if (!authorized) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     const now = new Date();
     const cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const cutoffIso = cutoff.toISOString();

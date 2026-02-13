@@ -15,7 +15,10 @@
     "verify:strict": "npm run lint && npm run typecheck",
     "test": "node --experimental-strip-types --experimental-specifier-resolution=node --test tests/*.test.mjs tests/*.test.ts",
     "test:rls": "node --test tests/rls-audit.test.mjs",
-    "test:auth-middleware": "node --experimental-strip-types --experimental-specifier-resolution=node --test tests/middleware-auth.test.ts"
+    "test:auth-middleware": "node --experimental-strip-types --experimental-specifier-resolution=node --test tests/middleware-auth.test.ts",
+    "perf:seed": "node scripts/perf/seed-leads.mjs",
+    "perf:bench": "node scripts/perf/bench-leads.mjs",
+    "perf:100k:run": "node scripts/perf/run-100k-ready.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

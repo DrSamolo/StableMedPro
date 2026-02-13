@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { resolveAdminGuardDecision } from "./lib/server/admin-access";
+import { resolveProtectedRouteDecision } from "./lib/server/admin-access";
 import { createSupabaseMiddlewareClient } from "./lib/supabase/middleware-client";
 
 const LOGIN_PATH = "/login";
@@ -28,7 +28,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const unauthenticatedDecision = resolveAdminGuardDecision({
+  const unauthenticatedDecision = resolveProtectedRouteDecision({
     pathname: req.nextUrl.pathname,
     isAuthenticated: Boolean(user),
   });
@@ -55,7 +55,7 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
     return redirectWithSupabaseCookies(req, getResponse(), UNAUTHORIZED_PATH);
   }
 
-  const decision = resolveAdminGuardDecision({
+  const decision = resolveProtectedRouteDecision({
     pathname: req.nextUrl.pathname,
     isAuthenticated: true,
     profileRole: (profile as { role?: string | null } | null)?.role,
@@ -69,5 +69,5 @@ export async function middleware(req: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/dashboard/:path*"],
 };

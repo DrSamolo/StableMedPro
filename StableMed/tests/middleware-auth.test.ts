@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { isAdminRole, resolveAdminGuardDecision } from "../lib/server/admin-access.ts";
+import { isAdminRole, resolveAdminGuardDecision, resolveProtectedRouteDecision } from "../lib/server/admin-access.ts";
 
 test("non-admin routes pass through even without session", () => {
   const decision = resolveAdminGuardDecision({
@@ -52,4 +52,18 @@ test("admin role parsing is normalized and strict", () => {
   assert.equal(isAdminRole(" ADMIN "), true);
   assert.equal(isAdminRole("manager"), false);
   assert.equal(isAdminRole(null), false);
+});
+
+test("dashboard routes require authentication in protected-route guard", () => {
+  const anonymous = resolveProtectedRouteDecision({
+    pathname: "/dashboard/leads",
+    isAuthenticated: false,
+  });
+  const authenticated = resolveProtectedRouteDecision({
+    pathname: "/dashboard/leads",
+    isAuthenticated: true,
+  });
+
+  assert.equal(anonymous, "redirect_login");
+  assert.equal(authenticated, "allow");
 });

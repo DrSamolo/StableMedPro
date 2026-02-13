@@ -11,6 +11,7 @@ const adminGuardInputSchema = z.object({
 });
 
 export type AdminGuardDecision = "allow" | "redirect_login" | "redirect_unauthorized";
+export type RouteGuardDecision = "allow" | "redirect_login" | "redirect_unauthorized";
 
 function normalizeRole(role: unknown): string | null {
   if (typeof role !== "string") {
@@ -51,4 +52,26 @@ export function resolveAdminGuardDecision(input: {
   }
 
   return isAdminRole(parsed.profileRole) ? "allow" : "redirect_unauthorized";
+}
+
+export function resolveProtectedRouteDecision(input: {
+  pathname: string;
+  isAuthenticated: boolean;
+  profileRole?: unknown;
+}): RouteGuardDecision {
+  const parsed = adminGuardInputSchema.parse(input);
+
+  if (parsed.pathname.startsWith("/admin")) {
+    if (!parsed.isAuthenticated) {
+      return "redirect_login";
+    }
+
+    return isAdminRole(parsed.profileRole) ? "allow" : "redirect_unauthorized";
+  }
+
+  if (parsed.pathname.startsWith("/dashboard")) {
+    return parsed.isAuthenticated ? "allow" : "redirect_login";
+  }
+
+  return "allow";
 }

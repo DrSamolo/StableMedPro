@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { BrandLockup, BrandMark, Card } from '@/components/Common';
 import { Loader2, Lock } from 'lucide-react';
@@ -9,20 +9,62 @@ const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('AUTH_TIMEOUT')), timeoutMs);
+    });
+
+    try {
+      return await Promise.race([promise, timeoutPromise]);
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { data, error } = await withTimeout(
+          supabase.auth.signInWithPassword({
+            email,
+            password,
+          }),
+          12000,
+        );
+
         if (error) throw error;
+        if (!data.session) {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (!sessionData.session) {
+            throw new Error('Session introuvable après authentification.');
+          }
+        }
+
+        // Hard navigation avoids client-side race with middleware auth checks.
+        window.location.assign('/dashboard');
         return;
     } catch (err: any) {
-      setError(err.message === 'Invalid login credentials' ? 'Identifiants incorrects' : err.message);
+      if (err?.message === 'AUTH_TIMEOUT') {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData.session) {
+          window.location.assign('/dashboard');
+          return;
+        }
+      }
+
+      const rawMessage = String(err?.message || '');
+      const normalizedMessage =
+        rawMessage === 'Invalid login credentials'
+          ? 'Identifiants incorrects'
+          : rawMessage === 'AUTH_TIMEOUT'
+            ? 'Le service d’authentification est lent. Vérifiez votre connexion puis réessayez.'
+            : rawMessage;
+
+      setError(normalizedMessage);
       setLoading(false);
     }
   };
