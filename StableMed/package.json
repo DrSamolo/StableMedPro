@@ -38,6 +38,8 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
