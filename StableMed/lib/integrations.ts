@@ -24,10 +24,9 @@ export const initiateZadarmaCall = async (fromSip: string, toPhone: string) => {
 };
 
 export const fetchZadarmaCallStats = async () => {
-    const daySeed = new Date().toISOString().slice(0, 10);
-    const hash = Array.from(daySeed).reduce((acc, c) => acc + c.charCodeAt(0), 0);
+    // No fake KPI data: return neutral stats until secure backend integration is connected.
     return {
-        calls_today: (hash % 16) + 8,
-        trend: (hash % 21) - 5,
+        calls_today: 0,
+        trend: 0,
     };
 };
