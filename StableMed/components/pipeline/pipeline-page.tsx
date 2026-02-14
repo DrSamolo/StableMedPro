@@ -144,7 +144,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
   onSelectDeal
 }) => (
   <div 
-    className="flex h-full min-w-[280px] flex-1 flex-col rounded-md border border-zinc-200 bg-zinc-50/40 p-2.5 motion-fade-up"
+    className="flex h-full min-w-0 w-full flex-col rounded-md border border-zinc-200 bg-zinc-50/40 p-2.5 motion-fade-up"
     onDrop={(e) => onDrop(e, stage)}
     onDragOver={onDragOver}
   >
@@ -1346,7 +1346,7 @@ const Pipeline: React.FC = () => {
                     </button>
                 </div>
             )}
-            <div className="flex h-full gap-6 overflow-x-auto pb-6">
+            <div className="grid h-full grid-cols-1 gap-4 pb-6 sm:grid-cols-2 lg:grid-cols-4 lg:gap-3 xl:gap-4 2xl:gap-6">
                 {(['new', 'negotiation', 'closing', 'won'] as const).map(stage => (
                     <PipelineColumn 
                         key={stage}

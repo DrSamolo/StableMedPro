@@ -138,6 +138,36 @@ const Dashboard: React.FC = () => {
         const filteredDeals = deals.filter(filterData);
         const filteredLeads = leads.filter(filterData);
         const usersById = new Map(users.map((u) => [u.id, u]));
+        const ownerNameById = new Map<string, string>();
+        users.forEach((u) => {
+          const fallbackName = u.full_name?.trim() || u.email?.split('@')[0] || '';
+          if (fallbackName) ownerNameById.set(u.id, fallbackName);
+        });
+
+        const ownerIds = Array.from(
+          new Set(
+            filteredDeals
+              .map((deal) => deal.owner_id)
+              .filter((id): id is string => typeof id === 'string' && id.length > 0),
+          ),
+        );
+
+        if (ownerIds.length > 0) {
+          const { data: ownerProfiles } = await supabase
+            .from('profiles')
+            .select('id,full_name,first_name,last_name,email')
+            .in('id', ownerIds.slice(0, 1000));
+
+          (ownerProfiles || []).forEach((profile: any) => {
+            const composedName = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
+            const resolvedName =
+              profile.full_name?.trim() ||
+              composedName ||
+              profile.email?.split('@')[0] ||
+              '';
+            if (resolvedName) ownerNameById.set(profile.id, resolvedName);
+          });
+        }
 
         // --- Calculate KPIs ---
         const wonDeals = filteredDeals.filter((d) => normalizeStage(d.stage) === 'won');
@@ -150,8 +180,8 @@ const Dashboard: React.FC = () => {
         const pipelineValue = activeDeals.reduce((acc, curr) => acc + parseAmount(curr.amount), 0);
 
         setKpis([
-            { label: 'Chiffre d\'affaires', value: `${totalRevenue.toLocaleString()}`, trend: 100, trendDirection: 'up' }, // Removed € for clean counting
-            { label: 'Pipeline en cours', value: `${pipelineValue.toLocaleString()}`, trend: 0, trendDirection: 'up' }, // Removed € for clean counting
+            { label: 'Chiffre d\'affaires', value: `${totalRevenue.toLocaleString()} €`, trend: 100, trendDirection: 'up' },
+            { label: 'Pipeline en cours', value: `${pipelineValue.toLocaleString()} €`, trend: 0, trendDirection: 'up' },
             { label: 'Appels émis (Zadarma)', value: callStats.calls_today.toString(), trend: callStats.trend, trendDirection: 'up' },
             { label: 'Deals Gagnés', value: wonDeals.length.toString(), trend: 0, trendDirection: 'up' },
         ]);
@@ -176,7 +206,7 @@ const Dashboard: React.FC = () => {
         filteredDeals.forEach((deal) => {
           if (normalizeStage(deal.stage) !== 'won' || !deal.owner_id) return;
           const owner = usersById.get(deal.owner_id);
-          const ownerName = owner?.full_name?.trim() || owner?.email?.split('@')[0] || 'Commercial';
+          const ownerName = ownerNameById.get(deal.owner_id) || owner?.full_name?.trim() || owner?.email?.split('@')[0] || 'Commercial';
 
           if (!commercialStats[deal.owner_id]) {
             commercialStats[deal.owner_id] = { name: ownerName, count: 0, revenue: 0 };
@@ -212,8 +242,8 @@ const Dashboard: React.FC = () => {
                     setTopTrainings([]);
                     setCached(cacheKey, {
                         kpis: [
-                            { label: 'Chiffre d\'affaires', value: `${totalRevenue.toLocaleString()}`, trend: 100, trendDirection: 'up' },
-                            { label: 'Pipeline en cours', value: `${pipelineValue.toLocaleString()}`, trend: 0, trendDirection: 'up' },
+                            { label: 'Chiffre d\'affaires', value: `${totalRevenue.toLocaleString()} €`, trend: 100, trendDirection: 'up' },
+                            { label: 'Pipeline en cours', value: `${pipelineValue.toLocaleString()} €`, trend: 0, trendDirection: 'up' },
                             { label: 'Appels émis (Zadarma)', value: callStats.calls_today.toString(), trend: callStats.trend, trendDirection: 'up' },
                             { label: 'Deals Gagnés', value: wonDeals.length.toString(), trend: 0, trendDirection: 'up' },
                         ],
@@ -243,8 +273,8 @@ const Dashboard: React.FC = () => {
                     setTopTrainings(sortedStats);
                     setCached(cacheKey, {
                         kpis: [
-                            { label: 'Chiffre d\'affaires', value: `${totalRevenue.toLocaleString()}`, trend: 100, trendDirection: 'up' },
-                            { label: 'Pipeline en cours', value: `${pipelineValue.toLocaleString()}`, trend: 0, trendDirection: 'up' },
+                            { label: 'Chiffre d\'affaires', value: `${totalRevenue.toLocaleString()} €`, trend: 100, trendDirection: 'up' },
+                            { label: 'Pipeline en cours', value: `${pipelineValue.toLocaleString()} €`, trend: 0, trendDirection: 'up' },
                             { label: 'Appels émis (Zadarma)', value: callStats.calls_today.toString(), trend: callStats.trend, trendDirection: 'up' },
                             { label: 'Deals Gagnés', value: wonDeals.length.toString(), trend: 0, trendDirection: 'up' },
                         ],

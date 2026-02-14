@@ -191,7 +191,17 @@ export const Avatar: React.FC<{ name: string; src?: string | null; size?: 'sm' |
 // KPI Number Counter
 export const CountUp: React.FC<{ value: string | number; duration?: number; className?: string }> = ({ value, duration = 1000, className = '' }) => {
   const [displayValue, setDisplayValue] = useState(0);
-  const numericValue = typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]+/g, "")) : value;
+  const parseLocalizedValue = (raw: string) => {
+    const normalized = raw
+      .replace(/\u00A0/g, ' ')
+      .trim()
+      .replace(/[€%]/g, '')
+      .replace(/\s+/g, '')
+      .replace(/,/g, '.');
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  };
+  const numericValue = typeof value === 'string' ? parseLocalizedValue(value) : value;
   const isCurrency = typeof value === 'string' && value.includes('€');
   const isPercentage = typeof value === 'string' && value.includes('%');
 
