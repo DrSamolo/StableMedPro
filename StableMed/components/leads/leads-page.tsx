@@ -1352,7 +1352,7 @@ const Leads: React.FC = () => {
   useEffect(() => {
     const pageChanged = previousPageRef.current !== currentPage;
     previousPageRef.current = currentPage;
-    if (!pageChanged || currentPage !== 1) return;
+    if (!pageChanged) return;
 
     leadsTableTopRef.current?.scrollIntoView({ behavior: 'auto', block: 'start' });
   }, [currentPage]);
