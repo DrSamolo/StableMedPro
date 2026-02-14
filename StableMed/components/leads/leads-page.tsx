@@ -498,6 +498,7 @@ const Leads: React.FC = () => {
           `id,user_id,name,first_name,last_name,profession,client_reference,address,secure_info,email,specialty,location,status,is_pipeline,last_activity,phone,${profilesSelect}`,
         )
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .range(from, to);
       rowsQuery = applyLeadFilters(rowsQuery);
 
@@ -672,6 +673,7 @@ const Leads: React.FC = () => {
               .from('leads')
               .select(useInnerProfilesJoin ? 'id,profiles:user_id!inner(id)' : 'id')
               .order('created_at', { ascending: false })
+              .order('id', { ascending: false })
               .range(offset, offset + chunkSize - 1);
           idsQuery = applyLeadFilters(idsQuery);
 
