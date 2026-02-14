@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { SectionLoader, SectionTitle, Modal, SlideOver, CustomSelect } from '@/components/Common';
 import { Training } from '@/types';
 import { Search, Plus, Trash2, Loader2, Image as ImageIcon, X, FileText, Banknote, User, Users, BookOpen, Monitor, GraduationCap, Briefcase, Building, ChevronRight, Clock, List, LayoutGrid, Link2 } from 'lucide-react';
@@ -15,6 +15,18 @@ const CATALOG_DETAILS_CACHE_TTL_MS = 10 * 60_000;
 const CATALOG_PAGE_SIZE = 120;
 const CATALOG_MAX_ROWS = 600;
 const CATALOG_FIRST_PAGE_SIZE = 120;
+const DEFAULT_TARGET_AUDIENCES = [
+  'Infirmier diplômé d\'État',
+  'Médecin Généraliste',
+  'Cardiologue',
+  'Kinésithérapeute',
+];
+const DEFAULT_ORGANIZATIONS = [
+  'WALTER',
+  'ANDPC',
+  'FIF PL',
+  'OPCO EP',
+];
 
 const Catalog: React.FC = () => {
   const { user, profile, permissions } = useAuth();
@@ -33,6 +45,8 @@ const Catalog: React.FC = () => {
   const [selectedType, setSelectedType] = useState('all');
   const [selectedOrg, setSelectedOrg] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+  const [isCompactTableLayout, setIsCompactTableLayout] = useState(false);
+  const tableViewportRef = useRef<HTMLDivElement | null>(null);
   const [isAssociateModalOpen, setIsAssociateModalOpen] = useState(false);
   const [trainingToAssociate, setTrainingToAssociate] = useState<Training | null>(null);
   const [associateTargetType, setAssociateTargetType] = useState<'lead' | 'deal'>('lead');
@@ -45,6 +59,10 @@ const Catalog: React.FC = () => {
   // Create Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCustomTargetAudience, setIsCustomTargetAudience] = useState(false);
+  const [customTargetAudience, setCustomTargetAudience] = useState('');
+  const [isCustomOrganization, setIsCustomOrganization] = useState(false);
+  const [customOrganization, setCustomOrganization] = useState('');
   const [newTraining, setNewTraining] = useState<Partial<Training>>({
     title: '',
     target_audience: 'Infirmier diplômé d\'État',
@@ -59,7 +77,10 @@ const Catalog: React.FC = () => {
     instructor_name: '',
     instructor_bio: '',
     program_details: '',
-    image: ''
+    image: '',
+    e_learning_hours: 0,
+    epp_hours: 0,
+    virtual_class_hours: 0,
   });
 
   // Delete Confirmation State
@@ -69,6 +90,25 @@ const Catalog: React.FC = () => {
   // Explicit check for admin role OR permission. 
   // This acts as a fallback if permissions fail to load or are desynchronized.
   const canManageCatalog = (permissions['can_manage_catalog'] === true) || (profile?.role === 'admin');
+
+  const parseHours = (value: unknown): number => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  };
+
+  const getHybridBreakdownLabel = (training: Partial<Training>) => {
+    const eLearning = parseHours(training.e_learning_hours);
+    const epp = parseHours(training.epp_hours);
+    const virtualClass = parseHours(training.virtual_class_hours);
+    return `E-Learning ${eLearning}h • EPP ${epp}h • Classe virtuelle ${virtualClass}h`;
+  };
+
+  const getFormatLabelNoWrap = (format?: string | null) =>
+    (format || '-')
+      .replace(/-/g, '\u2011') // non-breaking hyphen
+      .replace(/\s+/g, '\u00A0');
+  const getPriceLabelNoWrap = (price?: number | null) =>
+    `${String(price ?? 0).replace(/\s+/g, '')}\u00A0€`;
 
   useEffect(() => {
     if (!user) return;
@@ -113,6 +153,21 @@ const Catalog: React.FC = () => {
       isMounted = false;
     };
   }, [selectedTraining]);
+
+  useEffect(() => {
+    if (viewMode !== 'table') return;
+    const node = tableViewportRef.current;
+    if (!node) return;
+
+    const applyLayout = () => {
+      setIsCompactTableLayout(node.clientWidth < 1260);
+    };
+
+    applyLayout();
+    const observer = new ResizeObserver(() => applyLayout());
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [viewMode]);
 
   const mergeById = (base: Training[], incoming: Training[]) => {
     const map = new Map<string, Training>();
@@ -213,8 +268,17 @@ const Catalog: React.FC = () => {
   };
 
   const handleCreateTraining = async () => {
+    if (!canManageCatalog) {
+        addNotification('error', 'Accès réservé aux administrateurs.');
+        return;
+    }
     if (!user || !newTraining.title?.trim()) {
         addNotification('error', 'Le titre est obligatoire.');
+        return;
+    }
+    const normalizedTargetAudience = (newTraining.target_audience ?? '').trim();
+    if (!normalizedTargetAudience) {
+        addNotification('error', 'Le public cible est obligatoire.');
         return;
     }
     setIsSubmitting(true);
@@ -222,6 +286,15 @@ const Catalog: React.FC = () => {
     const normalizedCompensation = Number(newTraining.compensation ?? 0);
     if (Number.isNaN(normalizedPrice) || Number.isNaN(normalizedCompensation)) {
         addNotification('error', 'Prix/indemnité invalides.');
+        setIsSubmitting(false);
+        return;
+    }
+    const isHybridFormat = newTraining.format === 'Hybride';
+    const eLearningHours = parseHours(newTraining.e_learning_hours);
+    const eppHours = parseHours(newTraining.epp_hours);
+    const virtualClassHours = parseHours(newTraining.virtual_class_hours);
+    if (isHybridFormat && (eLearningHours + eppHours + virtualClassHours <= 0)) {
+        addNotification('error', 'Renseignez la répartition des heures pour le format hybride.');
         setIsSubmitting(false);
         return;
     }
@@ -242,7 +315,10 @@ const Catalog: React.FC = () => {
         instructor_bio: newTraining.instructor_bio,
         program_details: newTraining.program_details,
         status: 'Actif',
-        image: newTraining.image || 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80&w=600'
+        image: newTraining.image || 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80&w=600',
+        e_learning_hours: isHybridFormat ? eLearningHours : null,
+        epp_hours: isHybridFormat ? eppHours : null,
+        virtual_class_hours: isHybridFormat ? virtualClassHours : null,
     };
 
     try {
@@ -291,8 +367,15 @@ const Catalog: React.FC = () => {
             instructor_name: '',
             instructor_bio: '',
             program_details: '',
-            image: ''
+            image: '',
+            e_learning_hours: 0,
+            epp_hours: 0,
+            virtual_class_hours: 0,
         });
+        setIsCustomTargetAudience(false);
+        setCustomTargetAudience('');
+        setIsCustomOrganization(false);
+        setCustomOrganization('');
         fetchTrainings();
         
     } catch (error: any) {
@@ -426,7 +509,10 @@ const Catalog: React.FC = () => {
       const matchesSearch = t.title.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesTarget = selectedTarget === 'all' || targetAudience === selectedTarget;
-      const matchesType = selectedType === 'all' || tType === selectedType;
+      const matchesType =
+        selectedType === 'all' ||
+        tType === selectedType ||
+        (selectedType === 'Hybride' && t.format === 'Hybride');
       const matchesOrg = selectedOrg === 'all' || tOrg === selectedOrg;
 
       return matchesSearch && matchesTarget && matchesType && matchesOrg;
@@ -434,15 +520,19 @@ const Catalog: React.FC = () => {
 
   // Calculate Unique Values for Dropdowns
   const uniqueTargets = Array.from(new Set(trainings.map(t => t.target_audience).filter(Boolean))).sort();
+  const targetAudienceOptions = Array.from(new Set([...DEFAULT_TARGET_AUDIENCES, ...uniqueTargets])).sort((a, b) =>
+    a.localeCompare(b, 'fr', { sensitivity: 'base' })
+  );
   const targetOptions = [
       { value: 'all', label: 'Tous publics' },
       ...uniqueTargets.map(t => ({ value: t, label: t }))
   ];
 
   const uniqueTypes = Array.from(new Set(trainings.map(t => t.training_type).filter(Boolean))).sort();
+  const typeFilterValues = Array.from(new Set([...uniqueTypes, 'Hybride']));
   const typeOptions = [
       { value: 'all', label: 'Tous types' },
-      ...uniqueTypes.map(t => ({ value: t, label: t }))
+      ...typeFilterValues.map(t => ({ value: t, label: t }))
   ];
 
   const uniqueOrgs = Array.from(new Set(trainings.map(t => t.organization).filter(Boolean))).sort();
@@ -635,28 +725,37 @@ const Catalog: React.FC = () => {
                 ))}
         </div>
        ) : (
-        <div className="overflow-x-auto rounded-md border border-border bg-white">
-          <table className="ui-table min-w-[880px] text-left text-sm">
+        <div ref={tableViewportRef} className="overflow-hidden rounded-md border border-border bg-white">
+          <table className="ui-table w-full table-fixed text-left text-sm">
+            <colgroup>
+              <col style={{ width: isCompactTableLayout ? '41%' : '48%' }} />
+              <col style={{ width: isCompactTableLayout ? '9%' : '8%' }} />
+              <col style={{ width: isCompactTableLayout ? '13%' : '12%' }} />
+              <col style={{ width: isCompactTableLayout ? '10%' : '9%' }} />
+              <col style={{ width: isCompactTableLayout ? '9%' : '8%' }} />
+              <col style={{ width: isCompactTableLayout ? '9%' : '8%' }} />
+              {canManageCatalog ? <col style={{ width: isCompactTableLayout ? '9%' : '7%' }} /> : null}
+            </colgroup>
             <thead className="border-b border-border bg-zinc-50/60">
               <tr>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Formation</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Type</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Public</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Organisme</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Format</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 text-right">Prix</th>
-                {canManageCatalog ? <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 text-right">Actions</th> : null}
+                <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Formation</th>
+                <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Type</th>
+                <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Public</th>
+                <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Organisme</th>
+                <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Format</th>
+                <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Prix</th>
+                {canManageCatalog ? <th className="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Actions</th> : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {filteredTrainings.map((training) => (
                 <tr
                   key={training.id}
-                  className="ui-table-row cursor-pointer hover:bg-zinc-50/50"
+                  className="ui-table-row h-24 cursor-pointer hover:bg-zinc-50/50"
                   onClick={() => setSelectedTraining(training)}
                 >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
+                  <td className="px-3 py-2 align-top">
+                    <div className="flex items-start gap-3">
                       <div className="h-10 w-14 shrink-0 overflow-hidden rounded border border-zinc-200 bg-zinc-100">
                         {training.image ? (
                           <img src={training.image} alt={training.title} className="h-full w-full object-cover" />
@@ -666,20 +765,30 @@ const Catalog: React.FC = () => {
                           </div>
                         )}
                       </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-primary">{training.title}</p>
-                        <p className="truncate text-xs text-secondary">{training.reference || 'Sans référence'}</p>
+                      <div className={`min-w-0 ${isCompactTableLayout ? 'max-w-[280px]' : 'max-w-[640px]'}`}>
+                        <p className="line-clamp-2 break-words text-sm font-medium leading-5 text-primary">{training.title}</p>
+                        <p className="mt-0.5 truncate text-xs text-secondary">{training.reference || 'Sans référence'}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-secondary">{training.training_type || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-secondary">{training.target_audience || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-secondary">{training.organization || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-secondary">{training.format || '-'}</td>
-                  <td className="px-4 py-3 text-right text-sm font-medium text-primary">{training.price ?? 0} €</td>
+                  <td className="px-3 py-2 align-top text-sm text-secondary">
+                    <span className="block line-clamp-2">{training.training_type || '-'}</span>
+                  </td>
+                  <td className="px-3 py-2 align-top text-sm text-secondary">
+                    <span className="block line-clamp-2">{training.target_audience || '-'}</span>
+                  </td>
+                  <td className="px-3 py-2 align-top text-sm text-secondary">
+                    <span className="block line-clamp-2">{training.organization || '-'}</span>
+                  </td>
+                  <td className="px-3 py-2 align-top text-sm text-secondary whitespace-nowrap">
+                    <span className="inline-flex items-center whitespace-nowrap">{getFormatLabelNoWrap(training.format)}</span>
+                  </td>
+                  <td className="px-3 py-2 align-top text-sm font-medium text-primary whitespace-nowrap">
+                    <span className="inline-flex items-center whitespace-nowrap">{getPriceLabelNoWrap(training.price)}</span>
+                  </td>
                   {canManageCatalog ? (
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-3 py-2 align-top">
+                      <div className="flex items-center justify-start gap-2">
                         <button
                           onClick={(e) => handleOpenAssociateModal(training, e)}
                           className="ui-focus rounded-md p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
@@ -852,7 +961,14 @@ const Catalog: React.FC = () => {
                           </div>
                           <div className="flex justify-between border-b border-gray-100 pb-2">
                               <span className="text-secondary">Type</span>
-                              <span className="font-medium text-primary">{selectedTraining.training_type} ({selectedTraining.format})</span>
+                              <span className="font-medium text-primary text-right">
+                                {selectedTraining.training_type} ({selectedTraining.format})
+                                {selectedTraining.format === 'Hybride' ? (
+                                  <span className="mt-1 block text-xs text-zinc-500">
+                                    {getHybridBreakdownLabel(selectedTraining)}
+                                  </span>
+                                ) : null}
+                              </span>
                           </div>
                           <div className="flex justify-between">
                               <span className="text-secondary">Public cible</span>
@@ -883,6 +999,25 @@ const Catalog: React.FC = () => {
                               <span className="block text-secondary text-xs mb-1">Durée totale</span>
                               <span className="text-base font-medium text-primary flex items-center gap-1"><Clock size={14}/> {selectedTraining.duration_total}</span>
                           </div>
+                          {selectedTraining.format === 'Hybride' ? (
+                            <div className="col-span-2 rounded-lg border border-zinc-200 bg-white p-3 shadow-sm">
+                              <span className="mb-2 block text-secondary text-xs">Répartition hybride</span>
+                              <div className="grid grid-cols-3 gap-2 text-xs">
+                                <div className="rounded border border-zinc-200 bg-zinc-50 p-2 text-center">
+                                  <span className="block text-zinc-500">E-Learning</span>
+                                  <span className="font-semibold text-primary">{parseHours(selectedTraining.e_learning_hours)} h</span>
+                                </div>
+                                <div className="rounded border border-zinc-200 bg-zinc-50 p-2 text-center">
+                                  <span className="block text-zinc-500">EPP</span>
+                                  <span className="font-semibold text-primary">{parseHours(selectedTraining.epp_hours)} h</span>
+                                </div>
+                                <div className="rounded border border-zinc-200 bg-zinc-50 p-2 text-center">
+                                  <span className="block text-zinc-500">Classe virtuelle</span>
+                                  <span className="font-semibold text-primary">{parseHours(selectedTraining.virtual_class_hours)} h</span>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
                       </div>
                   </div>
 
@@ -940,29 +1075,88 @@ const Catalog: React.FC = () => {
                                 placeholder="Référence (ex: REF-123)"
                             />
                             <select 
-                                value={newTraining.organization}
-                                onChange={(e) => setNewTraining({...newTraining, organization: e.target.value})}
+                                value={isCustomOrganization ? '__custom__' : (newTraining.organization || DEFAULT_ORGANIZATIONS[0])}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  if (value === '__custom__') {
+                                    setIsCustomOrganization(true);
+                                    setNewTraining({ ...newTraining, organization: customOrganization });
+                                    return;
+                                  }
+                                  setIsCustomOrganization(false);
+                                  setCustomOrganization('');
+                                  setNewTraining({ ...newTraining, organization: value });
+                                }}
                                 className="ui-input"
                             >
-                                <option value="WALTER">WALTER</option>
-                                <option value="Autre">Autre</option>
+                                {DEFAULT_ORGANIZATIONS.map((organization) => (
+                                  <option key={organization} value={organization}>
+                                    {organization}
+                                  </option>
+                                ))}
+                                {uniqueOrgs
+                                  .filter((organization) => !DEFAULT_ORGANIZATIONS.includes(organization))
+                                  .map((organization) => (
+                                    <option key={organization} value={organization}>
+                                      {organization}
+                                    </option>
+                                  ))}
+                                <option value="__custom__">+ Ajouter un nouvel organisme</option>
                             </select>
                         </div>
+                        {isCustomOrganization && (
+                          <input
+                            type="text"
+                            value={customOrganization}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setCustomOrganization(value);
+                              setNewTraining({ ...newTraining, organization: value });
+                            }}
+                            className="ui-input"
+                            placeholder="Ex: École X, Centre Y..."
+                          />
+                        )}
                     </div>
 
                     {/* Block 2: Cible & Type */}
                     <div className="space-y-3 rounded-md border border-zinc-200 bg-zinc-50/60 p-3">
                         <label className="text-xs font-semibold uppercase tracking-[0.06em] text-zinc-500">Cible & Type</label>
                          <select 
-                            value={newTraining.target_audience}
-                            onChange={(e) => setNewTraining({...newTraining, target_audience: e.target.value})}
+                            value={isCustomTargetAudience ? '__custom__' : (newTraining.target_audience || DEFAULT_TARGET_AUDIENCES[0])}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value === '__custom__') {
+                                setIsCustomTargetAudience(true);
+                                setNewTraining({ ...newTraining, target_audience: customTargetAudience });
+                                return;
+                              }
+                              setIsCustomTargetAudience(false);
+                              setCustomTargetAudience('');
+                              setNewTraining({ ...newTraining, target_audience: value });
+                            }}
                             className="ui-input"
                         >
-                            <option value="Infirmier diplômé d'État">Infirmier diplômé d'État (IDE)</option>
-                            <option value="Médecin Généraliste">Médecin Généraliste</option>
-                            <option value="Cardiologue">Cardiologue</option>
-                            <option value="Kinésithérapeute">Kinésithérapeute</option>
+                            {targetAudienceOptions.map((audience) => (
+                              <option key={audience} value={audience}>
+                                {audience === 'Infirmier diplômé d\'État' ? 'Infirmier diplômé d\'État (IDE)' : audience}
+                              </option>
+                            ))}
+                            <option value="__custom__">+ Ajouter un nouveau public cible</option>
                         </select>
+                        {isCustomTargetAudience && (
+                          <input
+                            type="text"
+                            value={customTargetAudience}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setCustomTargetAudience(value);
+                              setNewTraining({ ...newTraining, target_audience: value });
+                            }}
+                            className="ui-input"
+                            placeholder="Ex: Pharmacien, Aide-soignant, Sage-femme..."
+                          />
+                        )}
                         <div className="grid grid-cols-2 gap-3">
                             <select 
                                 value={newTraining.training_type}
@@ -975,7 +1169,16 @@ const Catalog: React.FC = () => {
                             </select>
                             <select 
                                 value={newTraining.format}
-                                onChange={(e) => setNewTraining({...newTraining, format: e.target.value as any})}
+                                onChange={(e) => {
+                                  const nextFormat = e.target.value as Training['format'];
+                                  setNewTraining((prev) => ({
+                                    ...prev,
+                                    format: nextFormat,
+                                    e_learning_hours: nextFormat === 'Hybride' ? parseHours(prev.e_learning_hours) : 0,
+                                    epp_hours: nextFormat === 'Hybride' ? parseHours(prev.epp_hours) : 0,
+                                    virtual_class_hours: nextFormat === 'Hybride' ? parseHours(prev.virtual_class_hours) : 0,
+                                  }));
+                                }}
                                 className="ui-input"
                             >
                                 <option value="E-Learning">E-Learning</option>
@@ -984,6 +1187,43 @@ const Catalog: React.FC = () => {
                                 <option value="Hybride">Hybride</option>
                             </select>
                         </div>
+                        {newTraining.format === 'Hybride' && (
+                          <div className="grid grid-cols-3 gap-3 rounded-md border border-zinc-200 bg-white p-3">
+                            <div>
+                              <label className="text-[11px] font-medium text-secondary">E-Learning (h)</label>
+                              <input
+                                type="number"
+                                min={0}
+                                step={0.5}
+                                value={Number(newTraining.e_learning_hours ?? 0)}
+                                onChange={(e) => setNewTraining({ ...newTraining, e_learning_hours: Number(e.target.value) })}
+                                className="ui-input"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] font-medium text-secondary">EPP (h)</label>
+                              <input
+                                type="number"
+                                min={0}
+                                step={0.5}
+                                value={Number(newTraining.epp_hours ?? 0)}
+                                onChange={(e) => setNewTraining({ ...newTraining, epp_hours: Number(e.target.value) })}
+                                className="ui-input"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[11px] font-medium text-secondary">Classe virtuelle (h)</label>
+                              <input
+                                type="number"
+                                min={0}
+                                step={0.5}
+                                value={Number(newTraining.virtual_class_hours ?? 0)}
+                                onChange={(e) => setNewTraining({ ...newTraining, virtual_class_hours: Number(e.target.value) })}
+                                className="ui-input"
+                              />
+                            </div>
+                          </div>
+                        )}
                     </div>
 
                     {/* Block 3: Finance & Durée */}

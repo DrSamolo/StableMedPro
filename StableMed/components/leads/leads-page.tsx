@@ -111,6 +111,27 @@ type PreparedCsvRow = {
   matchId: string | null;
 };
 
+type LeadWonInfoRecord = {
+  id: string;
+  session_label: string | null;
+  first_connection_date: string | null;
+  first_connection_time: string | null;
+  first_connection_done: boolean;
+  recording_1_url: string | null;
+  recording_2_url: string | null;
+  proof_url: string | null;
+  sale_comment: string | null;
+  followup_comment: string | null;
+  organization_comment: string | null;
+  unsubscription_comment: string | null;
+  created_at: string;
+  deals?: {
+    id: string;
+    title: string;
+    amount: number;
+  } | null;
+};
+
 const Leads: React.FC = () => {
   const { user, profile, permissions } = useAuth();
   const { selectedTeamId, selectedUserId, users, teams } = useData();
@@ -151,6 +172,9 @@ const Leads: React.FC = () => {
   const [newNote, setNewNote] = useState('');
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [submittingNote, setSubmittingNote] = useState(false);
+  const [leadWonInfo, setLeadWonInfo] = useState<LeadWonInfoRecord | null>(null);
+  const [loadingLeadWonInfo, setLoadingLeadWonInfo] = useState(false);
+  const [isLeadWonInfoModalOpen, setIsLeadWonInfoModalOpen] = useState(false);
 
   // Call Modal State
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
@@ -256,6 +280,51 @@ const Leads: React.FC = () => {
         setNotes([]);
         setNewNote('');
     }
+  }, [selectedLead]);
+
+  useEffect(() => {
+    if (!selectedLead || selectedLead.status !== 'won') {
+      setLeadWonInfo(null);
+      setLoadingLeadWonInfo(false);
+      return;
+    }
+
+    let mounted = true;
+    setLoadingLeadWonInfo(true);
+    void (async () => {
+      const { data, error } = await supabase
+        .from('deal_win_details')
+        .select(`
+          id,session_label,first_connection_date,first_connection_time,first_connection_done,
+          recording_1_url,recording_2_url,proof_url,sale_comment,followup_comment,organization_comment,unsubscription_comment,created_at,
+          deals!inner(id,title,amount,lead_id,stage)
+        `)
+        .eq('deals.lead_id', selectedLead.id)
+        .eq('deals.stage', 'won')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!mounted) return;
+      if (error) {
+        setLeadWonInfo(null);
+      } else {
+        const row = data as any;
+        setLeadWonInfo(
+          row
+            ? {
+                ...row,
+                deals: Array.isArray(row.deals) ? row.deals[0] : row.deals,
+              }
+            : null,
+        );
+      }
+      setLoadingLeadWonInfo(false);
+    })();
+
+    return () => {
+      mounted = false;
+    };
   }, [selectedLead]);
 
   useEffect(() => {
@@ -533,6 +602,7 @@ const Leads: React.FC = () => {
       { value: 'new', label: 'Nouveau' },
       { value: 'contacted', label: 'Contacté' },
       { value: 'qualified', label: 'Qualifié' },
+      { value: 'won', label: 'Gagné' },
       { value: 'closed', label: 'Fermé' },
       { value: 'lost', label: 'Perdu' }
   ];
@@ -1105,12 +1175,62 @@ const Leads: React.FC = () => {
   const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
       if (!selectedLead) return;
       const newStatus = e.target.value as Lead['status'];
-      const { error } = await supabase.from('leads').update({ status: newStatus }).eq('id', selectedLead.id);
+      const isPromotedToWon = newStatus === 'won' && selectedLead.status !== 'won';
+
+      const { error } = await supabase
+        .from('leads')
+        .update({ status: newStatus, last_activity: new Date().toISOString() })
+        .eq('id', selectedLead.id);
       if (!error) {
           const updated = { ...selectedLead, status: newStatus };
           setSelectedLead(updated);
           setLeads(prev => prev.map(l => l.id === selectedLead.id ? updated : l));
           addNotification('success', "Statut mis à jour.");
+
+          if (isPromotedToWon) {
+            const selectedTrainingObjects = trainings.filter((t) => selectedTrainingIds.includes(t.id));
+            const totalAmount = selectedTrainingObjects.reduce((sum, t) => sum + t.price, 0);
+            const trainingTitles = selectedTrainingObjects.map((t) => t.title).join(', ');
+            const dealPayload: Record<string, unknown> = {
+              owner_id: selectedLead.user_id || user?.id,
+              title: selectedLead.name,
+              training: trainingTitles,
+              amount: totalAmount,
+              stage: 'won',
+              probability: 100,
+              closed_at: new Date().toISOString(),
+              lead_id: selectedLead.id,
+            };
+
+            let createdDealId: string | null = null;
+            const primaryInsert = await supabase.from('deals').insert([dealPayload]).select('id').single();
+            let dealError = primaryInsert.error;
+            if (!dealError && primaryInsert.data?.id) {
+              createdDealId = primaryInsert.data.id;
+            } else if (dealError && (dealError.code === '42703' || String(dealError.message || '').toLowerCase().includes('lead_id'))) {
+              const fallbackPayload = { ...dealPayload };
+              delete (fallbackPayload as Record<string, unknown>).lead_id;
+              const fallbackInsert = await supabase.from('deals').insert([fallbackPayload]).select('id').single();
+              dealError = fallbackInsert.error;
+              if (!dealError && fallbackInsert.data?.id) {
+                createdDealId = fallbackInsert.data.id;
+              }
+            }
+
+            if (dealError || !createdDealId) {
+              addNotification('warning', `Lead passé en gagné, mais opportunité non créée: ${dealError?.message || 'erreur inconnue'}`);
+              return;
+            }
+
+            if (selectedTrainingIds.length > 0) {
+              await supabase.from('deal_trainings').insert(
+                selectedTrainingIds.map((trainingId) => ({ deal_id: createdDealId, training_id: trainingId })),
+              );
+            }
+
+            addNotification('success', 'Opportunité gagnée créée. Ouverture de la prise d’informations vente...');
+            window.location.assign(`/dashboard/pipeline?action=capture-sale&dealId=${createdDealId}&leadId=${selectedLead.id}`);
+          }
       }
   };
 
@@ -1402,8 +1522,8 @@ const Leads: React.FC = () => {
                         <td className="truncate px-3 py-3 text-secondary md:px-5">{lead.profession || lead.specialty}</td>
                         <td className="truncate px-3 py-3 text-secondary md:px-5">{lead.location}</td>
                         <td className="px-3 py-3 md:px-4">
-                        <Badge className="border-transparent" variant={lead.status === 'qualified' ? 'success' : lead.status === 'contacted' ? 'blue' : lead.status === 'closed' ? 'neutral' : lead.status === 'lost' ? 'warning' : 'neutral'}>
-                            {lead.status === 'qualified' ? 'Qualifié' : lead.status === 'contacted' ? 'Contacté' : lead.status === 'closed' ? 'Fermé' : lead.status === 'lost' ? 'Perdu' : 'Nouveau'}
+                        <Badge className="border-transparent" variant={lead.status === 'qualified' || lead.status === 'won' ? 'success' : lead.status === 'contacted' ? 'blue' : lead.status === 'closed' ? 'neutral' : lead.status === 'lost' ? 'warning' : 'neutral'}>
+                            {lead.status === 'qualified' ? 'Qualifié' : lead.status === 'won' ? 'Gagné' : lead.status === 'contacted' ? 'Contacté' : lead.status === 'closed' ? 'Fermé' : lead.status === 'lost' ? 'Perdu' : 'Nouveau'}
                         </Badge>
                         </td>
                         <td className="px-3 py-3 md:px-4">
@@ -1713,6 +1833,7 @@ const Leads: React.FC = () => {
                        <option value="new">Nouveau</option>
                        <option value="contacted">Contacté</option>
                        <option value="qualified">Qualifié</option>
+                       <option value="won">Gagné</option>
                        <option value="closed">Fermé</option>
                        <option value="lost">Perdu</option>
                    </select>
@@ -1746,6 +1867,31 @@ const Leads: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {selectedLead.status === 'won' && (
+              <div className="space-y-3 rounded-md border border-zinc-200 bg-zinc-50 p-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-primary uppercase tracking-wide">Informations vente</h4>
+                  {leadWonInfo && (
+                    <button onClick={() => setIsLeadWonInfoModalOpen(true)} className="ui-btn ui-btn-secondary h-8 px-3 py-0 text-xs">
+                      Voir tout
+                    </button>
+                  )}
+                </div>
+                {loadingLeadWonInfo ? (
+                  <p className="text-sm text-secondary">Chargement...</p>
+                ) : leadWonInfo ? (
+                  <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+                    <p><span className="text-secondary">Opportunité:</span> {leadWonInfo.deals?.title || '-'}</p>
+                    <p><span className="text-secondary">Montant:</span> {leadWonInfo.deals?.amount?.toLocaleString?.() ?? '-'} €</p>
+                    <p><span className="text-secondary">Session:</span> {leadWonInfo.session_label || '-'}</p>
+                    <p><span className="text-secondary">Preuve:</span> {leadWonInfo.proof_url ? <a href={leadWonInfo.proof_url} target="_blank" rel="noreferrer" className="text-primary underline">Ouvrir</a> : '-'}</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-secondary">Aucune information vente enregistrée.</p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-4">
                 <h4 className="text-sm font-medium text-primary uppercase tracking-wide">Informations Détaillées</h4>
@@ -1814,6 +1960,34 @@ const Leads: React.FC = () => {
           </div>
         )}
       </SlideOver>
+
+      <Modal isOpen={isLeadWonInfoModalOpen} onClose={() => setIsLeadWonInfoModalOpen(false)} maxWidth="2xl">
+        <div className="w-full rounded-md bg-white p-6">
+          <h3 className="mb-4 text-lg font-medium text-primary">Informations vente (détail)</h3>
+          {leadWonInfo ? (
+            <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+              <p><span className="text-secondary">Opportunité:</span> {leadWonInfo.deals?.title || '-'}</p>
+              <p><span className="text-secondary">Montant:</span> {leadWonInfo.deals?.amount?.toLocaleString?.() ?? '-'} €</p>
+              <p><span className="text-secondary">Session:</span> {leadWonInfo.session_label || '-'}</p>
+              <p><span className="text-secondary">1ère connexion faite:</span> {leadWonInfo.first_connection_done ? 'Oui' : 'Non'}</p>
+              <p><span className="text-secondary">Date 1ère connexion:</span> {leadWonInfo.first_connection_date || '-'}</p>
+              <p><span className="text-secondary">Heure 1ère connexion:</span> {leadWonInfo.first_connection_time || '-'}</p>
+              <p><span className="text-secondary">Enregistrement 1:</span> {leadWonInfo.recording_1_url ? <a href={leadWonInfo.recording_1_url} target="_blank" rel="noreferrer" className="text-primary underline">Ouvrir</a> : '-'}</p>
+              <p><span className="text-secondary">Enregistrement 2:</span> {leadWonInfo.recording_2_url ? <a href={leadWonInfo.recording_2_url} target="_blank" rel="noreferrer" className="text-primary underline">Ouvrir</a> : '-'}</p>
+              <p><span className="text-secondary">Screen preuve:</span> {leadWonInfo.proof_url ? <a href={leadWonInfo.proof_url} target="_blank" rel="noreferrer" className="text-primary underline">Ouvrir</a> : '-'}</p>
+              <p><span className="text-secondary">Commentaire vente:</span> {leadWonInfo.sale_comment || '-'}</p>
+              <p><span className="text-secondary">Commentaire suivi:</span> {leadWonInfo.followup_comment || '-'}</p>
+              <p><span className="text-secondary">Commentaire organisme:</span> {leadWonInfo.organization_comment || '-'}</p>
+              <p className="md:col-span-2"><span className="text-secondary">Commentaire désinscription:</span> {leadWonInfo.unsubscription_comment || '-'}</p>
+            </div>
+          ) : (
+            <p className="text-sm text-secondary">Aucune donnée.</p>
+          )}
+          <div className="mt-6 flex justify-end">
+            <button onClick={() => setIsLeadWonInfoModalOpen(false)} className="ui-btn ui-btn-primary">Fermer</button>
+          </div>
+        </div>
+      </Modal>
 
       <SlideOver isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Nouveau Contact" maxWidth="2xl">
             <p className="mb-5 text-sm text-secondary">Créez un lead avec les informations essentielles.</p>

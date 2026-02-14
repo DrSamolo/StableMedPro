@@ -72,7 +72,7 @@ export interface Lead {
   
   specialty: string; // Legacy/Mapped
   location: string;
-  status: 'new' | 'contacted' | 'qualified' | 'closed' | 'lost';
+  status: 'new' | 'contacted' | 'qualified' | 'won' | 'closed' | 'lost';
   is_pipeline: boolean;
   lastActivity: string; // Dans la DB c'est last_activity
   email: string;
@@ -81,6 +81,7 @@ export interface Lead {
 
 export interface Deal {
   id: string;
+  lead_id?: string;
   leadName: string;
   training: string; // Legacy field (single string)
   trainings?: Training[]; // New field (multiple trainings)
@@ -117,6 +118,9 @@ export interface Training {
   instructor_bio: string;
   program_details: string; // Texte riche ou structuré
   image?: string;
+  e_learning_hours?: number | null;
+  epp_hours?: number | null;
+  virtual_class_hours?: number | null;
   created_at?: string;
 }
 

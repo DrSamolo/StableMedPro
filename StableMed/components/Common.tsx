@@ -376,10 +376,11 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   children: React.ReactNode;
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl';
+  contentScroll?: boolean;
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, maxWidth = 'sm' }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, maxWidth = 'sm', contentScroll = true }) => {
   const [mounted, setMounted] = useState(false);
   const maxWidthClass = {
     sm: 'sm:max-w-sm',
@@ -387,6 +388,8 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, maxWidt
     lg: 'sm:max-w-lg',
     xl: 'sm:max-w-xl',
     '2xl': 'sm:max-w-2xl',
+    '3xl': 'sm:max-w-3xl',
+    '4xl': 'sm:max-w-4xl',
   }[maxWidth];
 
   useEffect(() => {
@@ -414,7 +417,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, maxWidt
         ></div>
         
         {/* Content with Zoom/Fade Entry + viewport-safe scrolling */}
-        <div className={`relative mt-8 max-h-[calc(100dvh-2rem)] w-full transform overflow-y-auto rounded-lg border border-zinc-200 bg-white text-left shadow-card transition-all sm:mt-0 sm:my-8 ${maxWidthClass} motion-scale-in`}>
+        <div className={`relative mt-8 max-h-[calc(100dvh-2rem)] w-full transform rounded-lg border border-zinc-200 bg-white text-left shadow-card transition-all sm:mt-0 sm:my-8 ${contentScroll ? 'overflow-y-auto' : 'overflow-visible'} ${maxWidthClass} motion-scale-in`}>
             {children}
         </div>
       </div>
