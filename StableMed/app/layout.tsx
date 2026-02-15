@@ -8,7 +8,7 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <head>
-        <title>StableMed CRM</title>
+        <title>SudMed CRM</title>
       </head>
       <body>
         {children}

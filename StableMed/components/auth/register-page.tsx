@@ -108,7 +108,7 @@ const Register: React.FC<RegisterProps> = ({ token }) => {
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
             <div className="max-w-md w-full text-center">
                 <BrandLockup compact className="justify-center mb-6" />
-                <h1 className="text-2xl font-semibold text-primary tracking-tight mb-2">StableMed</h1>
+                <h1 className="text-2xl font-semibold text-primary tracking-tight mb-2">SudMed CRM</h1>
                 <p className="text-secondary mb-6 text-sm">CRM médical sécurisé sur invitation</p>
 
                 <div className="mb-5 rounded-md border border-rose-200/70 bg-rose-50/50 px-3 py-2 text-left text-sm text-rose-700">

@@ -18,7 +18,7 @@ export const BrandMark: React.FC<{ className?: string }> = ({ className = "" }) 
 export const BrandLockup: React.FC<{ className?: string; compact?: boolean }> = ({ className = "", compact = false }) => (
   <div className={`flex items-center gap-3 ${className}`}>
     <BrandMark />
-    {!compact ? <span className="text-lg font-semibold tracking-tight text-primary">StableMed</span> : null}
+    {!compact ? <span className="text-lg font-semibold tracking-tight text-primary">SudMed CRM</span> : null}
   </div>
 );
 

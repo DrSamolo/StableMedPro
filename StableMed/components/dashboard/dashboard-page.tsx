@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Card, CountUp, PageHeader, SectionLoader } from '@/components/Common';
+import { Card, CountUp, PageHeader, SectionLoader, SlideOver } from '@/components/Common';
 import { FilterBar } from '@/components/FilterBar';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { ArrowUpRight, ArrowDownRight, Activity, DollarSign, Users, TrendingUp, Briefcase, Award, Phone } from 'lucide-react';
@@ -14,6 +14,7 @@ import { getCached, setCached } from '@/lib/perf/cache';
 import { useSectionPerf } from '@/lib/perf/use-section-perf';
 
 const DASHBOARD_CACHE_TTL_MS = 30_000;
+const euroNumberFormatter = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
 
 const parseAmount = (value: unknown): number => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -25,6 +26,8 @@ const parseAmount = (value: unknown): number => {
 };
 
 const normalizeStage = (stage: unknown): string => (typeof stage === 'string' ? stage.trim().toLowerCase() : '');
+const toWholeEuro = (value: unknown): number => Math.trunc(parseAmount(value));
+const formatEuro = (value: unknown): string => `${euroNumberFormatter.format(toWholeEuro(value))} €`;
 
 const StatCard: React.FC<{ kpi: KpiData; icon: React.ReactNode; index: number }> = ({ kpi, icon, index }) => (
   <div style={{ animationDelay: `${index * 60}ms` }}>
@@ -56,9 +59,10 @@ const StatCard: React.FC<{ kpi: KpiData; icon: React.ReactNode; index: number }>
 
 const Dashboard: React.FC = () => {
   const { user, profile } = useAuth();
-  const { selectedTeamId, selectedUserId, users } = useData(); // Use Global Filters
+  const { selectedTeamId, selectedUserId, users, loadingFilters } = useData(); // Use Global Filters
   const [loading, setLoading] = useState(true);
   useSectionPerf('dashboard', loading);
+  const [rankingView, setRankingView] = useState<'trainings' | 'commercials' | null>(null);
   
   // State for Real Data
   const [kpis, setKpis] = useState<KpiData[]>([
@@ -73,10 +77,10 @@ const Dashboard: React.FC = () => {
   const [topCommercials, setTopCommercials] = useState<any[]>([]);
 
   useEffect(() => {
-    if (user) {
+    if (user && !loadingFilters) {
         fetchDashboardData();
     }
-  }, [user, selectedTeamId, selectedUserId]); // Refetch when filters change
+  }, [user, loadingFilters, selectedTeamId, selectedUserId]); // Refetch when filters change
 
   const fetchDashboardData = async () => {
     try {
@@ -155,14 +159,12 @@ const Dashboard: React.FC = () => {
         if (ownerIds.length > 0) {
           const { data: ownerProfiles } = await supabase
             .from('profiles')
-            .select('id,full_name,first_name,last_name,email')
+            .select('id,full_name,email')
             .in('id', ownerIds.slice(0, 1000));
 
           (ownerProfiles || []).forEach((profile: any) => {
-            const composedName = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
             const resolvedName =
               profile.full_name?.trim() ||
-              composedName ||
               profile.email?.split('@')[0] ||
               '';
             if (resolvedName) ownerNameById.set(profile.id, resolvedName);
@@ -176,15 +178,16 @@ const Dashboard: React.FC = () => {
           return stage !== 'won' && stage !== 'lost';
         });
 
-        const totalRevenue = wonDeals.reduce((acc, curr) => acc + parseAmount(curr.amount), 0);
-        const pipelineValue = activeDeals.reduce((acc, curr) => acc + parseAmount(curr.amount), 0);
+        const totalRevenue = wonDeals.reduce((acc, curr) => acc + toWholeEuro(curr.amount), 0);
+        const pipelineValue = activeDeals.reduce((acc, curr) => acc + toWholeEuro(curr.amount), 0);
+        const nextKpis: KpiData[] = [
+          { label: 'Chiffre d\'affaires', value: formatEuro(totalRevenue), trend: 100, trendDirection: 'up' },
+          { label: 'Pipeline en cours', value: formatEuro(pipelineValue), trend: 0, trendDirection: 'up' },
+          { label: 'Appels émis (Zadarma)', value: callStats.calls_today.toString(), trend: callStats.trend, trendDirection: 'up' },
+          { label: 'Deals Gagnés', value: wonDeals.length.toString(), trend: 0, trendDirection: 'up' },
+        ];
 
-        setKpis([
-            { label: 'Chiffre d\'affaires', value: `${totalRevenue.toLocaleString()} €`, trend: 100, trendDirection: 'up' },
-            { label: 'Pipeline en cours', value: `${pipelineValue.toLocaleString()} €`, trend: 0, trendDirection: 'up' },
-            { label: 'Appels émis (Zadarma)', value: callStats.calls_today.toString(), trend: callStats.trend, trendDirection: 'up' },
-            { label: 'Deals Gagnés', value: wonDeals.length.toString(), trend: 0, trendDirection: 'up' },
-        ]);
+        setKpis(nextKpis);
 
         // --- Chart Data ---
         const chartMap = new Map<string, number>();
@@ -196,7 +199,7 @@ const Dashboard: React.FC = () => {
         wonDeals.forEach(deal => {
             const date = new Date(deal.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
             if (chartMap.has(date)) {
-                chartMap.set(date, (chartMap.get(date) || 0) + parseAmount(deal.amount));
+                chartMap.set(date, (chartMap.get(date) || 0) + toWholeEuro(deal.amount));
             }
         });
         setChartData(Array.from(chartMap).map(([name, value]) => ({ name, value })));
@@ -213,7 +216,7 @@ const Dashboard: React.FC = () => {
           }
 
           commercialStats[deal.owner_id].count += 1;
-          commercialStats[deal.owner_id].revenue += parseAmount(deal.amount);
+          commercialStats[deal.owner_id].revenue += toWholeEuro(deal.amount);
         });
         const sortedCommercials = Object.values(commercialStats)
           .sort((a, b) => b.revenue - a.revenue)
@@ -241,12 +244,7 @@ const Dashboard: React.FC = () => {
                 if (scopedDealIds.length === 0) {
                     setTopTrainings([]);
                     setCached(cacheKey, {
-                        kpis: [
-                            { label: 'Chiffre d\'affaires', value: `${totalRevenue.toLocaleString()} €`, trend: 100, trendDirection: 'up' },
-                            { label: 'Pipeline en cours', value: `${pipelineValue.toLocaleString()} €`, trend: 0, trendDirection: 'up' },
-                            { label: 'Appels émis (Zadarma)', value: callStats.calls_today.toString(), trend: callStats.trend, trendDirection: 'up' },
-                            { label: 'Deals Gagnés', value: wonDeals.length.toString(), trend: 0, trendDirection: 'up' },
-                        ],
+                        kpis: nextKpis,
                         chartData: Array.from(chartMap).map(([name, value]) => ({ name, value })),
                         activities: mergedActivities,
                         topTrainings: [],
@@ -267,17 +265,12 @@ const Dashboard: React.FC = () => {
                         const tId = rel.training.id;
                         if (!stats[tId]) stats[tId] = { title: rel.training.title, count: 0, revenue: 0 };
                         stats[tId].count += 1;
-                        stats[tId].revenue += rel.training.price || 0;
+                        stats[tId].revenue += toWholeEuro(rel.training.price);
                     });
                     const sortedStats = Object.values(stats).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
                     setTopTrainings(sortedStats);
                     setCached(cacheKey, {
-                        kpis: [
-                            { label: 'Chiffre d\'affaires', value: `${totalRevenue.toLocaleString()} €`, trend: 100, trendDirection: 'up' },
-                            { label: 'Pipeline en cours', value: `${pipelineValue.toLocaleString()} €`, trend: 0, trendDirection: 'up' },
-                            { label: 'Appels émis (Zadarma)', value: callStats.calls_today.toString(), trend: callStats.trend, trendDirection: 'up' },
-                            { label: 'Deals Gagnés', value: wonDeals.length.toString(), trend: 0, trendDirection: 'up' },
-                        ],
+                        kpis: nextKpis,
                         chartData: Array.from(chartMap).map(([name, value]) => ({ name, value })),
                         activities: mergedActivities,
                         topTrainings: sortedStats,
@@ -316,9 +309,25 @@ const Dashboard: React.FC = () => {
       { data: kpis[2], icon: <Phone size={18} strokeWidth={1.5} /> },
       { data: kpis[3], icon: <TrendingUp size={18} strokeWidth={1.5} /> }
   ];
+  const topTrainingsPreview = topTrainings.slice(0, 3);
+  const topCommercialsPreview = topCommercials.slice(0, 3);
   const normalizedRole = (profile?.role ?? '').trim().toLowerCase();
   const canShowTopCommercials =
     (normalizedRole === 'admin' || normalizedRole === 'manager') && selectedUserId === 'all';
+  const rankingRows =
+    rankingView === 'trainings'
+      ? topTrainings.map((item: any, index: number) => ({
+          id: `${item.title}-${index}`,
+          rank: index + 1,
+          name: item.title,
+          amount: item.revenue,
+        }))
+      : topCommercials.map((item: any, index: number) => ({
+          id: `${item.name}-${index}`,
+          rank: index + 1,
+          name: item.name,
+          amount: item.revenue,
+        }));
   return (
     <div className="ui-page pb-10">
       <PageHeader
@@ -355,7 +364,7 @@ const Dashboard: React.FC = () => {
                   contentStyle={{ backgroundColor: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px', boxShadow: '0 1px 2px rgba(15, 23, 42, 0.08)' }}
                   itemStyle={{ color: '#0f172a' }}
                   cursor={{ stroke: '#E2E8F0' }}
-                  formatter={(value) => [`${value} €`, 'Revenu']}
+                  formatter={(value) => [formatEuro(value), 'Revenu']}
                 />
                 <Area type="monotone" dataKey="value" stroke="#0f172a" strokeWidth={2} fillOpacity={1} fill="url(#colorValue)" />
               </AreaChart>
@@ -411,6 +420,16 @@ const Dashboard: React.FC = () => {
               <div className="mb-6 flex items-center gap-2">
                    <Award className="text-primary" size={20} />
                    <h3 className="text-[15px] font-semibold leading-6 text-slate-700">Top formations (ventes)</h3>
+                   {topTrainings.length > 3 ? (
+                     <button
+                       type="button"
+                       onClick={() => setRankingView('trainings')}
+                       className="ml-auto inline-flex h-5 w-5 items-center justify-center rounded-full border border-zinc-200 text-[11px] text-zinc-400 transition-colors hover:border-zinc-300 hover:text-zinc-600"
+                       aria-label="Voir le classement complet des formations"
+                     >
+                       +
+                     </button>
+                   ) : null}
               </div>
               
               {topTrainings.length === 0 ? (
@@ -424,23 +443,25 @@ const Dashboard: React.FC = () => {
                    </div>
               ) : (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {topTrainings.map((t, idx) => (
+                    {topTrainingsPreview.map((t, idx) => (
                       <div
                         key={t.title}
-                        className="micro-interaction flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2.5 transition-colors hover:border-slate-300"
+                        className="micro-interaction rounded-lg border border-border bg-surface px-3 py-2.5 transition-colors hover:border-slate-300"
                         style={{ animationDelay: `${idx * 60}ms` }}
                       >
-                        <div>
-                          <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold ${
-                            idx === 0 ? 'border-amber-200 bg-amber-50 text-amber-700' :
-                            idx === 1 ? 'border-slate-200 bg-slate-50 text-slate-700' :
-                            idx === 2 ? 'border-orange-200 bg-orange-50 text-orange-700' :
-                            'border-border bg-surface text-secondary'
-                          }`}>#{idx + 1}</span>
-                          <p className="mt-1.5 text-[15px] font-medium leading-5 text-primary">{t.title}</p>
-                          <p className="text-xs text-secondary">{t.count} vente{t.count > 1 ? 's' : ''}</p>
+                        <div className="grid h-full w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 items-start">
+                          <div className="min-w-0">
+                            <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold ${
+                              idx === 0 ? 'border-amber-200 bg-amber-50 text-amber-700' :
+                              idx === 1 ? 'border-slate-200 bg-slate-50 text-slate-700' :
+                              idx === 2 ? 'border-orange-200 bg-orange-50 text-orange-700' :
+                              'border-border bg-surface text-secondary'
+                            }`}>#{idx + 1}</span>
+                            <p className="mt-1.5 text-[15px] font-medium leading-5 text-primary">{t.title}</p>
+                            <p className="text-xs text-secondary">{t.count} vente{t.count > 1 ? 's' : ''}</p>
+                          </div>
+                          <p className="inline-flex h-5 self-center items-center whitespace-nowrap text-base font-medium leading-none tabular-nums text-slate-700">{formatEuro(t.revenue)}</p>
                         </div>
-                        <p className="text-base font-medium leading-none tabular-nums text-slate-700">{t.revenue} €</p>
                       </div>
                     ))}
                   </div>
@@ -454,6 +475,16 @@ const Dashboard: React.FC = () => {
             <div className="mb-6 flex items-center gap-2">
               <Users className="text-primary" size={20} />
               <h3 className="text-[15px] font-semibold leading-6 text-slate-700">Top commerciaux (ventes)</h3>
+              {topCommercials.length > 3 ? (
+                <button
+                  type="button"
+                  onClick={() => setRankingView('commercials')}
+                  className="ml-auto inline-flex h-5 w-5 items-center justify-center rounded-full border border-zinc-200 text-[11px] text-zinc-400 transition-colors hover:border-zinc-300 hover:text-zinc-600"
+                  aria-label="Voir le classement complet des commerciaux"
+                >
+                  +
+                </button>
+              ) : null}
             </div>
 
             {topCommercials.length === 0 ? (
@@ -467,23 +498,25 @@ const Dashboard: React.FC = () => {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {topCommercials.map((c, idx) => (
+                {topCommercialsPreview.map((c, idx) => (
                   <div
                     key={`${c.name}-${idx}`}
-                    className="micro-interaction flex items-center justify-between rounded-lg border border-border bg-surface px-3 py-2.5 transition-colors hover:border-slate-300"
+                    className="micro-interaction rounded-lg border border-border bg-surface px-3 py-2.5 transition-colors hover:border-slate-300"
                     style={{ animationDelay: `${idx * 60}ms` }}
                   >
-                    <div>
-                      <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold ${
-                        idx === 0 ? 'border-amber-200 bg-amber-50 text-amber-700' :
-                        idx === 1 ? 'border-slate-200 bg-slate-50 text-slate-700' :
-                        idx === 2 ? 'border-orange-200 bg-orange-50 text-orange-700' :
-                        'border-border bg-surface text-secondary'
-                      }`}>#{idx + 1}</span>
-                      <p className="mt-1.5 text-[15px] font-medium leading-5 text-primary">{c.name}</p>
-                      <p className="text-xs text-secondary">{c.count} vente{c.count > 1 ? 's' : ''}</p>
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 items-start">
+                      <div className="min-w-0">
+                        <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-semibold ${
+                          idx === 0 ? 'border-amber-200 bg-amber-50 text-amber-700' :
+                          idx === 1 ? 'border-slate-200 bg-slate-50 text-slate-700' :
+                          idx === 2 ? 'border-orange-200 bg-orange-50 text-orange-700' :
+                          'border-border bg-surface text-secondary'
+                        }`}>#{idx + 1}</span>
+                        <p className="mt-1.5 text-[15px] font-medium leading-5 text-primary">{c.name}</p>
+                        <p className="text-xs text-secondary">{c.count} vente{c.count > 1 ? 's' : ''}</p>
+                      </div>
+                      <p className="self-center whitespace-nowrap text-base font-medium leading-none tabular-nums text-slate-700">{formatEuro(c.revenue)}</p>
                     </div>
-                    <p className="text-base font-medium leading-none tabular-nums text-slate-700">{c.revenue} €</p>
                   </div>
                 ))}
               </div>
@@ -491,6 +524,35 @@ const Dashboard: React.FC = () => {
           </Card>
         </div>
       ) : null}
+
+      <SlideOver
+        isOpen={rankingView !== null}
+        onClose={() => setRankingView(null)}
+        title={rankingView === 'trainings' ? 'Classement complet - formations' : 'Classement complet - commerciaux'}
+        maxWidth="lg"
+      >
+        {rankingRows.length === 0 ? (
+          <div className="ui-state-box ui-state-empty border-dashed py-8 text-center">
+            <div className="ui-state-stack">
+              <p className="ui-state-title">Classement indisponible</p>
+              <p className="ui-state-text">Aucune donnée à afficher.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-md border border-zinc-200 bg-white">
+            {rankingRows.map((row, index) => (
+              <div
+                key={row.id}
+                className={`grid grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 ${index < rankingRows.length - 1 ? 'border-b border-zinc-100' : ''}`}
+              >
+                <span className="text-xs font-semibold tabular-nums text-zinc-500">#{row.rank}</span>
+                <p className="truncate text-sm text-primary">{row.name}</p>
+                <p className="text-sm font-medium tabular-nums text-slate-700">{formatEuro(row.amount)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </SlideOver>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-# Security Audit - StableMed CRM
+# Security Audit - SudMed CRM
 Date: 2026-02-13
 Scope: frontend, middleware, server actions, Supabase SQL/RLS/RPC, edge functions.
 Target: production-ready, enterprise-grade baseline.

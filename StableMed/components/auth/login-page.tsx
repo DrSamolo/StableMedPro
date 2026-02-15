@@ -74,7 +74,7 @@ const Login: React.FC = () => {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
             <BrandLockup compact className="justify-center mb-4" />
-            <h1 className="text-2xl font-semibold text-primary tracking-tight">StableMed</h1>
+            <h1 className="text-2xl font-semibold text-primary tracking-tight">SudMed CRM</h1>
             <p className="text-secondary mt-2 text-sm">CRM médical sécurisé sur invitation</p>
         </div>
 
@@ -126,7 +126,7 @@ const Login: React.FC = () => {
                 Vous n'avez pas de compte ? Contactez votre administrateur pour recevoir une invitation.
             </p>
              <p className="text-xs text-gray-300 mt-2">
-                &copy; 2024 StableMed CRM. Closed Access.
+                &copy; 2024 SudMed CRM. Closed Access.
             </p>
         </div>
       </div>

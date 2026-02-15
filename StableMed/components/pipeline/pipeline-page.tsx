@@ -17,6 +17,12 @@ const TRAININGS_CACHE_TTL_MS = 3 * 60_000;
 const PIPELINE_COMPAT_CACHE_TTL_MS = 10 * 60_000;
 const PIPELINE_PAGE_SIZE = 120;
 const PIPELINE_MAX_ROWS = 800;
+const euroNumberFormatter = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
+const toWholeEuro = (value: unknown): number => {
+  const amount = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(amount) ? Math.trunc(amount) : 0;
+};
+const formatEuro = (value: unknown): string => `${euroNumberFormatter.format(toWholeEuro(value))} €`;
 
 interface PipelineColumnProps {
   title: string;
@@ -154,7 +160,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
           {title} 
           <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1.5 text-[10px] font-semibold text-zinc-500">{deals.length}</span>
       </h3>
-      <span className="text-[11px] font-medium tabular-nums text-zinc-500">{totalValue.toLocaleString()} €</span>
+      <span className="text-[11px] font-medium tabular-nums text-zinc-500">{formatEuro(totalValue)}</span>
     </div>
     <div className="flex-1 space-y-2.5 overflow-y-auto px-0.5">
       {deals.map((deal, idx) => (
@@ -205,7 +211,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
           <p className="truncate text-[12px] text-zinc-500">{deal.assignee?.full_name || deal.owner || "Non assigné"}</p>
           
           <div className="mt-2.5 flex items-center justify-between border-t border-zinc-100 pt-2.5">
-            <div className="text-sm font-semibold tabular-nums text-zinc-900">{deal.amount.toLocaleString()} €</div>
+            <div className="text-sm font-semibold tabular-nums text-zinc-900">{formatEuro(deal.amount)}</div>
             <div className="rounded-full bg-zinc-50 px-2 py-0.5 text-[11px] font-medium text-zinc-500">
                 {deal.probability}%
             </div>
@@ -957,7 +963,7 @@ const Pipeline: React.FC = () => {
   });
 
   const getDealsByStage = (stage: Deal['stage']) => filteredDeals.filter(d => d.stage === stage);
-  const getTotal = (stageDeals: Deal[]) => stageDeals.reduce((acc, curr) => acc + curr.amount, 0);
+  const getTotal = (stageDeals: Deal[]) => stageDeals.reduce((acc, curr) => acc + toWholeEuro(curr.amount), 0);
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     e.dataTransfer.setData("dealId", id);
@@ -1719,7 +1725,7 @@ const Pipeline: React.FC = () => {
                 </p>
                 <div className="mb-6 rounded-md border border-gray-100 bg-gray-50 p-4">
                     <div className="text-sm text-secondary">Montant final</div>
-                    <div className="text-2xl font-bold text-primary">{(wonDealSummary?.amount || 0).toLocaleString()} €</div>
+                    <div className="text-2xl font-bold text-primary">{formatEuro(wonDealSummary?.amount || 0)}</div>
                 </div>
 
                 <div className="flex gap-3">

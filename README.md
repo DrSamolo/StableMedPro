@@ -1,4 +1,4 @@
-# StableMed CRM
+# SudMed CRM
 
 Ce repo conserve la structure d'origine avec le CRM dans `StableMed/`.
 
