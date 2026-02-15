@@ -11,12 +11,14 @@ interface RegisterProps {
 }
 
 type InvitationSignupContext = Pick<Invitation, 'email' | 'role' | 'team_id' | 'expires_at'>;
+const PENDING_INVITATION_STORAGE_KEY = 'pending_invitation_signup';
 
 const Register: React.FC<RegisterProps> = ({ token }) => {
   const [invitation, setInvitation] = useState<InvitationSignupContext | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -36,7 +38,7 @@ const Register: React.FC<RegisterProps> = ({ token }) => {
           if (!invitationData) throw new Error("Invitation invalide ou expirée.");
           setInvitation(invitationData as InvitationSignupContext);
       } catch (err: any) {
-          setError(err.message);
+          setTokenError(err.message);
       } finally {
           setLoading(false);
       }
@@ -46,7 +48,7 @@ const Register: React.FC<RegisterProps> = ({ token }) => {
       e.preventDefault();
       if (!invitation) return;
       setIsSubmitting(true);
-      setError(null);
+      setSubmitError(null);
 
       try {
           // 1. Create Auth User
@@ -63,31 +65,38 @@ const Register: React.FC<RegisterProps> = ({ token }) => {
           if (signUpError) throw signUpError;
           if (!data.user) throw new Error("Erreur création utilisateur.");
 
-          // 2. Ensure profile exists and apply invitation role/team.
-          // Upsert makes this robust even if DB trigger is missing.
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .upsert({
-                id: data.user.id,
-                email: invitation.email,
-                role: invitation.role,
-                team_id: invitation.team_id,
-                full_name: fullName
-            }, { onConflict: 'id' });
-          
-          if (profileError) throw profileError;
+          const normalizedFullName = fullName.trim() || null;
+          if (data.session) {
+            const { error: finalizeError } = await supabase.rpc('finalize_invitation_signup', {
+              p_token: token,
+              p_full_name: normalizedFullName,
+            });
+            if (finalizeError) throw finalizeError;
+            window.location.assign('/dashboard');
+            return;
+          }
 
-          // 3. Mark invitation as used
-          const { error: consumeError } = await supabase.rpc('consume_invitation_token', {
-            p_token: token,
-          });
-          if (consumeError) throw consumeError;
-
-          alert("Compte créé avec succès ! Vous allez être redirigé.");
-          window.location.href = '/';
+          localStorage.setItem(
+            PENDING_INVITATION_STORAGE_KEY,
+            JSON.stringify({
+              token,
+              fullName: normalizedFullName,
+              at: Date.now(),
+            }),
+          );
+          window.location.assign('/login');
 
       } catch (err: any) {
-          setError(err.message);
+          const rawMessage = String(err?.message || '');
+          if (rawMessage === 'User already registered') {
+            setSubmitError("Un compte existe déjà pour cet email. Connectez-vous.");
+          } else if (rawMessage === 'Password should be at least 6 characters') {
+            setSubmitError('Le mot de passe doit contenir au moins 6 caractères.');
+          } else if (rawMessage.includes('Invitation')) {
+            setSubmitError(rawMessage);
+          } else {
+            setSubmitError(rawMessage || "Impossible de finaliser l'inscription.");
+          }
           setIsSubmitting(false);
       }
   };
@@ -103,7 +112,7 @@ const Register: React.FC<RegisterProps> = ({ token }) => {
       );
   }
 
-  if (error) {
+  if (tokenError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
             <div className="max-w-md w-full text-center">
@@ -116,7 +125,7 @@ const Register: React.FC<RegisterProps> = ({ token }) => {
                     <AlertTriangle size={14} />
                     <span className="font-medium">Invitation invalide ou expirée</span>
                   </div>
-                  <p className="mt-1.5 text-xs text-rose-700/90">{error}</p>
+                  <p className="mt-1.5 text-xs text-rose-700/90">{tokenError}</p>
                 </div>
                 <p className="text-sm text-secondary">
                   Demandez un nouveau lien d&apos;invitation à votre administrateur.
@@ -137,6 +146,11 @@ const Register: React.FC<RegisterProps> = ({ token }) => {
 
         <Card>
             <form onSubmit={handleRegister} className="space-y-4">
+                {submitError ? (
+                  <div className="rounded-md border border-rose-200/70 bg-rose-50/50 px-3 py-2 text-sm text-rose-700">
+                    {submitError}
+                  </div>
+                ) : null}
                 <div className="rounded-md border border-border bg-zinc-50 px-3 py-2.5 text-sm text-secondary mb-4">
                     Invitation pour <span className="font-medium text-primary">{invitation?.email}</span>
                 </div>

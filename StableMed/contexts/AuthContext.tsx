@@ -44,6 +44,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const profileIdRef = useRef<string | null>(null);
+  const ensuredAllChatUserIdRef = useRef<string | null>(null);
+
+  const ensureAllChatMembership = async (userId: string) => {
+    if (ensuredAllChatUserIdRef.current === userId) return;
+    try {
+      const { error } = await supabase.rpc('ensure_actor_all_chat_membership', {
+        p_actor_id: userId,
+      });
+      if (error) {
+        const code = (error as { code?: string }).code ?? '';
+        const missingRpc =
+          code === 'PGRST202' ||
+          code === '42883' ||
+          String(error.message || '').toLowerCase().includes('not found');
+        if (!missingRpc) {
+          console.warn('ensure_actor_all_chat_membership failed:', error.message);
+        }
+        return;
+      }
+      ensuredAllChatUserIdRef.current = userId;
+    } catch (e) {
+      console.warn('ensure_actor_all_chat_membership unexpected error:', e);
+    }
+  };
 
   const fetchPermissions = async (role: string) => {
     const cachedPermissions = permissionsCache.get(role);
@@ -152,6 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (userProfile.role) {
         void fetchPermissions(userProfile.role);
       }
+      void ensureAllChatMembership(userId);
     } catch (error) {
       console.warn('Unexpected error fetching profile:', error);
     } finally {
@@ -162,6 +187,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     profileIdRef.current = profile?.id ?? null;
   }, [profile?.id]);
+
+  useEffect(() => {
+    const currentUserId = user?.id;
+    if (!currentUserId) return;
+
+    const refreshOnForeground = () => {
+      void fetchProfile(currentUserId, { force: true });
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshOnForeground();
+      }
+    };
+
+    window.addEventListener('focus', refreshOnForeground);
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('focus', refreshOnForeground);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     perfStart('auth.bootstrap');
@@ -194,6 +242,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setProfile(null);
     setPermissions({});
     profileCache = null;
+    ensuredAllChatUserIdRef.current = null;
   };
 
   const refreshProfile = async () => {

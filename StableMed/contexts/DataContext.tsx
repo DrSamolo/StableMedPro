@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Profile, Team } from '../types';
 import { useAuth } from './AuthContext';
@@ -81,10 +81,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [profile]);
 
-  const loadFilterData = async () => {
+  const loadFilterData = useCallback(async () => {
     if (!profile) return;
     perfStart('data.filters');
     const cacheKey = `${profile.role}:${profile.team_id ?? 'none'}:${profile.id}`;
+    const canUseCache = !isAdmin && !isManager;
 
     setLoadingFilters(true);
 
@@ -107,7 +108,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     if (
-      !isAdmin &&
+      canUseCache &&
       filterCache &&
       filterCache.key === cacheKey &&
       Date.now() - filterCache.at < FILTER_CACHE_TTL_MS
@@ -119,20 +120,36 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return;
     }
     
-    const loadTeams = async () => {
+    const loadTeams = async (scopedTeamId: string | null) => {
       if (isAdmin) {
         return await supabase.from('teams').select('id,name,created_at').order('name');
       }
-      if (profile.team_id) {
-        return await supabase.from('teams').select('id,name,created_at').eq('id', profile.team_id).order('name');
+      if (scopedTeamId) {
+        return await supabase.from('teams').select('id,name,created_at').eq('id', scopedTeamId).order('name');
       }
       return { data: [], error: null } as { data: unknown[]; error: null };
     };
 
     const loadUsers = async () => {
-      const { data, error } = await supabase.rpc('get_visible_profiles');
+      const scopedResult = (isAdmin || isManager)
+        ? await supabase.rpc('get_team_management_profiles_v2')
+        : await supabase.rpc('get_visible_profiles');
+      const {
+        data,
+        error,
+      } = (!scopedResult.error || !isAdmin && !isManager)
+        ? scopedResult
+        : await supabase.rpc('get_team_management_profiles');
       if (!error) {
-        return { data: (data ?? []) as Profile[], error: null };
+        const rows = (data ?? []) as Profile[];
+        if (isManager && profile.team_id && rows.length === 0) {
+          return await supabase
+            .from('profiles')
+            .select('id,email,full_name,avatar_url,role,team_id,created_at')
+            .eq('team_id', profile.team_id)
+            .order('full_name');
+        }
+        return { data: rows, error: null };
       }
 
       if (isAdmin) {
@@ -155,30 +172,58 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .order('full_name');
     };
 
-    const [teamsResult, usersResult] = await Promise.all([loadTeams(), loadUsers()]);
+    const usersResult = await loadUsers();
+    const nextUsers = ((usersResult.data ?? []) as Profile[]);
+    const managerEffectiveTeamId =
+      isManager
+        ? (nextUsers.find((row) => row.id === profile.id)?.team_id ?? profile.team_id ?? null)
+        : (profile.team_id ?? null);
+    const teamsResult = await loadTeams(managerEffectiveTeamId);
 
     const nextTeams = ((teamsResult.data ?? []) as Team[]);
-    const nextUsers = ((usersResult.data ?? []) as Profile[]);
     setTeams(nextTeams);
     setUsers(nextUsers);
-    filterCache = {
-      key: cacheKey,
-      at: Date.now(),
-      teams: nextTeams,
-      users: nextUsers,
-    };
+    if (canUseCache) {
+      filterCache = {
+        key: cacheKey,
+        at: Date.now(),
+        teams: nextTeams,
+        users: nextUsers,
+      };
+    }
 
     // Default Selection Logic
     if (normalizedRole === 'commercial') {
         setSelectedUserId(profile.id); // Locked to self
         if (profile.team_id) setSelectedTeamId(profile.team_id);
-    } else if (isManager && profile.team_id) {
-        setSelectedTeamId(profile.team_id); // Locked to own team
+    } else if (isManager && managerEffectiveTeamId) {
+        setSelectedUserId('all');
+        setSelectedTeamId(managerEffectiveTeamId); // Locked to own team
     }
 
     setLoadingFilters(false);
     perfEnd('data.filters');
-  };
+  }, [isAdmin, isManager, normalizedRole, profile]);
+
+  useEffect(() => {
+    const profileId = profile?.id;
+    if (!profileId) return;
+
+    const channel = supabase
+      .channel(`data-context-profile-${profileId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${profileId}` },
+        () => {
+          void loadFilterData();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadFilterData, profile?.id]);
 
   const setTeamFilter = (id: string | 'all') => {
       setSelectedTeamId(id);

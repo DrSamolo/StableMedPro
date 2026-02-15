@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase';
 import { BrandLockup, BrandMark, Card } from '@/components/Common';
 import { Loader2, Lock } from 'lucide-react';
 
+const PENDING_INVITATION_STORAGE_KEY = 'pending_invitation_signup';
+
 const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -41,6 +43,29 @@ const Login: React.FC = () => {
           const { data: sessionData } = await supabase.auth.getSession();
           if (!sessionData.session) {
             throw new Error('Session introuvable après authentification.');
+          }
+        }
+
+        const pendingRaw = localStorage.getItem(PENDING_INVITATION_STORAGE_KEY);
+        if (pendingRaw) {
+          try {
+            const pending = JSON.parse(pendingRaw) as { token?: string; fullName?: string | null };
+            if (pending?.token) {
+              const { error: finalizeError } = await supabase.rpc('finalize_invitation_signup', {
+                p_token: pending.token,
+                p_full_name:
+                  typeof pending.fullName === 'string' && pending.fullName.trim().length > 0
+                    ? pending.fullName.trim()
+                    : null,
+              });
+              if (finalizeError) throw finalizeError;
+            }
+            localStorage.removeItem(PENDING_INVITATION_STORAGE_KEY);
+          } catch (pendingError: any) {
+            const rawMessage = String(pendingError?.message || '');
+            setError(rawMessage || "Connexion réussie mais finalisation de l'invitation impossible.");
+            setLoading(false);
+            return;
           }
         }
 

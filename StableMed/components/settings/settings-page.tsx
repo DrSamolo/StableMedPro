@@ -56,6 +56,8 @@ const Settings: React.FC = () => {
   const [deleteUserConfirmInput, setDeleteUserConfirmInput] = useState('');
   const [deleteUserReassignTarget, setDeleteUserReassignTarget] = useState('');
   const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [managerBootstrapTeamId, setManagerBootstrapTeamId] = useState('');
+  const [isClaimingManagerTeam, setIsClaimingManagerTeam] = useState(false);
 
   // Invite Modal State
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
@@ -80,6 +82,13 @@ const Settings: React.FC = () => {
   const normalizedRole = (profile?.role ?? '').trim().toLowerCase();
   const isAdmin = normalizedRole === 'admin';
   const isManager = normalizedRole === 'manager';
+  const teamNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const team of teams) {
+      map.set(team.id, team.name);
+    }
+    return map;
+  }, [teams]);
   const teamMembersByTeamId = useMemo(() => {
     const counts = new Map<string, number>();
     for (const member of teamMembers) {
@@ -104,6 +113,17 @@ const Settings: React.FC = () => {
       unassignedMembers,
     };
   }, [teamMembers, teams.length]);
+  const managerCurrentTeamId = useMemo(() => {
+    if (!isManager) return null;
+    const selfMember = teamMembers.find((member) => member.id === user?.id);
+    if (selfMember) return selfMember.team_id ?? null;
+    return profile?.team_id ?? null;
+  }, [isManager, teamMembers, user?.id, profile?.team_id]);
+  const actorTeamScopeId = useMemo(() => {
+    if (isManager) return managerCurrentTeamId ?? profile?.team_id ?? null;
+    return profile?.team_id ?? null;
+  }, [isManager, managerCurrentTeamId, profile?.team_id]);
+  const managerNeedsTeam = isManager && !managerCurrentTeamId;
 
   // Configuration for permissions rows
   const PERMISSIONS_CONFIG = [
@@ -149,13 +169,18 @@ const Settings: React.FC = () => {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [activeTab, user?.id, profile?.role, profile?.team_id]);
+  }, [activeTab, user?.id, profile?.role, actorTeamScopeId]);
+
+  useEffect(() => {
+    if (activeTab !== 'team' || !isManager || !actorTeamScopeId) return;
+    void fetchTeams();
+  }, [activeTab, isManager, actorTeamScopeId]);
 
   const fetchTeam = async () => {
     perfStart('settings.fetchTeam');
     setIsLoadingTeam(true);
     const roleScope = profile?.role ?? 'guest';
-    const teamScope = profile?.team_id ?? 'none';
+    const teamScope = actorTeamScopeId ?? 'none';
     const userScope = user?.id ?? 'anon';
     const cacheKey = `settings:team-members:${roleScope}:${teamScope}:${userScope}`;
     const cached = getCached<Profile[]>(cacheKey, SETTINGS_TEAM_CACHE_TTL_MS);
@@ -167,7 +192,7 @@ const Settings: React.FC = () => {
     }
 
     try {
-      const profileTeamId = profile?.team_id ?? null;
+      const profileTeamId = actorTeamScopeId;
       if (isAdmin) {
         const { error: syncError } = await supabase.rpc('sync_missing_profiles_from_auth');
         if (syncError) {
@@ -182,35 +207,44 @@ const Settings: React.FC = () => {
         }
       }
 
-      const query = supabase
-        .rpc('get_visible_profiles');
+      const scopedResult = (isAdmin || isManager)
+        ? await supabase.rpc('get_team_management_profiles_v2')
+        : await supabase.rpc('get_visible_profiles');
+      const {
+        data,
+        error,
+      } = (!scopedResult.error || (!isAdmin && !isManager))
+        ? scopedResult
+        : await supabase.rpc('get_team_management_profiles');
+      const rows = Array.isArray(data) ? (data as Profile[]) : [];
+      if (error || !Array.isArray(data) || (isManager && profileTeamId && rows.length === 0)) {
+        const code = (error as { code?: string } | null)?.code ?? '';
+        const missingTeamManagementRpc =
+          code === 'PGRST202' ||
+          code === '42883' ||
+          String(error?.message || '').toLowerCase().includes('not found');
+        if ((isAdmin || isManager) && missingTeamManagementRpc) {
+          addNotification('error', 'Migration requise: get_team_management_profiles indisponible (step5_29).');
+        }
 
-      const { data, error } = await query;
-      if (error || !Array.isArray(data)) {
         let fallback = supabase
           .from('profiles')
           .select('id,email,full_name,avatar_url,role,manager_id,team_id,created_at')
           .order('created_at', { ascending: true });
 
         if (isManager && profileTeamId) {
-          fallback = fallback.eq('team_id', profileTeamId);
+          fallback = fallback.or(`team_id.eq.${profileTeamId},team_id.is.null`);
         } else if (!isAdmin && user?.id) {
           fallback = fallback.eq('id', user.id);
         }
 
         const { data: fallbackData, error: fallbackError } = await fallback;
         if (fallbackError) throw fallbackError;
-        const members = (fallbackData ?? []).map((member) => ({
-          ...member,
-          team: teams.find((team) => team.id === member.team_id),
-        })) as Profile[];
+        const members = (fallbackData ?? []) as Profile[];
         setTeamMembers(members);
         setCached(cacheKey, members);
-      } else if (data) {
-        const members = (data as Profile[]).map((member) => ({
-          ...member,
-          team: teams.find((team) => team.id === member.team_id),
-        })) as Profile[];
+      } else if (rows.length > 0) {
+        const members = rows as Profile[];
         setTeamMembers(members);
         setCached(cacheKey, members);
       }
@@ -224,7 +258,7 @@ const Settings: React.FC = () => {
 
   const fetchTeams = async () => {
       const roleScope = profile?.role ?? 'guest';
-      const teamScope = profile?.team_id ?? 'none';
+      const teamScope = actorTeamScopeId ?? 'none';
       const cacheKey = `settings:teams:${roleScope}:${teamScope}`;
       const cached = getCached<Team[]>(cacheKey, SETTINGS_TEAMS_CACHE_TTL_MS);
       if (cached && !isAdmin) {
@@ -237,7 +271,7 @@ const Settings: React.FC = () => {
         .select('id,name,created_at')
         .order('created_at', { ascending: false });
 
-      const profileTeamId = profile?.team_id ?? null;
+      const profileTeamId = actorTeamScopeId;
       if (isManager && profileTeamId) {
         query = query.eq('id', profileTeamId);
       } else if (!isAdmin && profileTeamId) {
@@ -374,17 +408,62 @@ const Settings: React.FC = () => {
   };
 
   const handleChangeTeam = async (userId: string, teamId: string) => {
-    if (!isAdmin) return addNotification('error', "Réservé aux admins.");
-    const val = teamId === 'none' ? null : teamId;
-    const { error } = await supabase.from('profiles').update({ team_id: val }).eq('id', userId);
+    if (!isAdmin && !isManager) return addNotification('error', "Réservé aux admins et managers.");
+    const managerTeamId = managerCurrentTeamId ?? null;
+    const val =
+      isManager && managerTeamId
+        ? managerTeamId
+        : teamId === 'none'
+          ? null
+          : teamId;
+    const v2Result = await supabase.rpc('assign_user_team_v2', {
+      p_user_id: userId,
+      p_team_id: val,
+    });
+    const { data, error } = v2Result.error
+      ? await supabase.rpc('assign_user_team', {
+          p_user_id: userId,
+          p_team_id: val,
+        })
+      : v2Result;
     if (error) {
         if(error.code === '42P01') setShowSqlModal(true);
         addNotification('error', "Erreur: " + error.message);
+    } else if (!data) {
+        addNotification('error', "Aucune modification appliquée.");
     } else {
         invalidateCached('settings:team-members:');
         addNotification('success', "Équipe assignée.");
-        const team = teams.find(t => t.id === val);
-        setTeamMembers(prev => prev.map(m => m.id === userId ? { ...m, team_id: val || undefined, team: team } : m));
+        setTeamMembers(prev => prev.map(m => m.id === userId ? { ...m, team_id: val || undefined } : m));
+        await fetchTeam();
+    }
+  };
+
+  const handleClaimManagerTeam = async () => {
+    if (!isManager || !user?.id) return;
+    if (!managerBootstrapTeamId) {
+      addNotification('warning', 'Sélectionnez une équipe.');
+      return;
+    }
+
+    setIsClaimingManagerTeam(true);
+    try {
+      const { data, error } = await supabase.rpc('assign_user_team_v2', {
+        p_user_id: user.id,
+        p_team_id: managerBootstrapTeamId,
+      });
+      if (error) throw error;
+      if (!data) throw new Error('Aucune modification appliquée.');
+
+      await refreshProfile();
+      invalidateCached('settings:teams:');
+      invalidateCached('settings:team-members:');
+      await Promise.all([fetchTeams(), fetchTeam()]);
+      addNotification('success', 'Votre équipe a été définie.');
+    } catch (error: any) {
+      addNotification('error', `Impossible de définir l'équipe: ${error.message}`);
+    } finally {
+      setIsClaimingManagerTeam(false);
     }
   };
 
@@ -860,6 +939,40 @@ const Settings: React.FC = () => {
 
                <Card>
                 <SettingSection title="Membres & Invitations">
+                    {isManager ? (
+                      <div className={`mb-5 rounded-md p-3 ${managerNeedsTeam ? 'border border-amber-200 bg-amber-50/60' : 'border border-emerald-200 bg-emerald-50/60'}`}>
+                        {managerNeedsTeam ? (
+                          <>
+                            <p className="text-sm font-medium text-amber-900">Votre compte manager n&apos;est rattaché à aucune équipe.</p>
+                            <p className="mt-1 text-xs text-amber-800">Sélectionnez d&apos;abord votre équipe pour activer la vue manager et les assignations.</p>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <select
+                                value={managerBootstrapTeamId}
+                                onChange={(e) => setManagerBootstrapTeamId(e.target.value)}
+                                className="ui-input min-h-0 h-8 w-full max-w-[260px] cursor-pointer px-2 py-1 text-xs"
+                              >
+                                <option value="">Sélectionner une équipe</option>
+                                {teams.map((team) => (
+                                  <option key={team.id} value={team.id}>{team.name}</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={handleClaimManagerTeam}
+                                disabled={isClaimingManagerTeam || !managerBootstrapTeamId}
+                                className="ui-btn ui-btn-primary h-8 px-3 text-xs disabled:opacity-60"
+                              >
+                                {isClaimingManagerTeam ? <Loader2 size={12} className="animate-spin" /> : null}
+                                Définir mon équipe
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-xs font-medium text-emerald-900">
+                            Equipe manager active: {teams.find((team) => team.id === managerCurrentTeamId)?.name || managerCurrentTeamId}
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
                     <div className="flex justify-between items-center mb-6">
                         <p className="text-sm text-secondary">Gérez les accès de votre organisation.</p>
                         {(isAdmin || isManager) && (
@@ -931,7 +1044,22 @@ const Settings: React.FC = () => {
                                             <option value="none">-- Aucune --</option>
                                             {teams.map(t => (<option key={t.id} value={t.id}>{t.name}</option>))}
                                         </select>
-                                      ) : <span className="text-secondary text-xs">{member.team?.name || '-'}</span>}
+                                      ) : isManager ? (
+                                        member.team_id ? (
+                                          <span className="text-secondary text-xs">{teamNameById.get(member.team_id) || '-'}</span>
+                                        ) : (
+                                          member.role === 'admin' || !managerCurrentTeamId ? (
+                                            <span className="text-secondary text-xs">-</span>
+                                          ) : (
+                                            <button
+                                              onClick={() => handleChangeTeam(member.id, managerCurrentTeamId)}
+                                              className="ui-btn h-8 border border-zinc-200 bg-white px-2.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                                            >
+                                              Affecter a mon equipe
+                                            </button>
+                                          )
+                                        )
+                                      ) : <span className="text-secondary text-xs">{member.team_id ? (teamNameById.get(member.team_id) || '-') : '-'}</span>}
                                   </td>
                                   {isAdmin ? (
                                     <td className="px-4 py-3">

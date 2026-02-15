@@ -56,6 +56,14 @@ Run SQL migrations in this order:
 29. `supabase/migrations/20260213_step5_15_bulk_leads_ops_and_edge_auth.sql`
 30. `supabase/migrations/20260213_step5_16_purge_mock_leads_data_rpc.sql`
 31. `supabase/migrations/20260213_step5_17_wipe_crm_runtime_data_rpc.sql`
+32. `supabase/migrations/20260215_step5_26_invitation_signup_finalize_atomic.sql`
+33. `supabase/migrations/20260215_step5_27_invitation_finalize_preserve_manual_team.sql`
+34. `supabase/migrations/20260215_step5_28_assign_user_team_rpc.sql`
+35. `supabase/migrations/20260215_step5_29_manager_team_scope_and_assignment.sql`
+36. `supabase/migrations/20260215_step5_30_chat_bootstrap_actor_all_membership.sql`
+37. `supabase/migrations/20260215_step5_31_profile_role_reassert_normalization.sql`
+38. `supabase/migrations/20260215_step5_32_manager_scope_v2_and_schema_reload.sql`
+39. `supabase/migrations/20260215_step5_33_manager_team_bootstrap_claim.sql`
 
 To purge perf/mock leads after migrations (admin only):
 `select public.purge_mock_leads_data('PURGE_MOCK_LEADS');`

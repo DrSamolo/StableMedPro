@@ -7,11 +7,13 @@ const BASE_SCHEMA_PATH = new URL("../supabase_schema.sql", import.meta.url);
 const MIGRATION_PATH = new URL("../supabase/migrations/20260211_step1_rls_foundations.sql", import.meta.url);
 const AUDIT_MIGRATION_PATH = new URL("../supabase/migrations/20260211_step1_2_audit_logging.sql", import.meta.url);
 const ROLE_GUARDRAILS_MIGRATION_PATH = new URL("../supabase/migrations/20260211_step1_3_profile_role_guardrails.sql", import.meta.url);
+const ROLE_REASSERT_MIGRATION_PATH = new URL("../supabase/migrations/20260215_step5_31_profile_role_reassert_normalization.sql", import.meta.url);
 
 const baseSchemaSql = readFileSync(BASE_SCHEMA_PATH, "utf8");
 const migrationSql = readFileSync(MIGRATION_PATH, "utf8");
 const auditMigrationSql = readFileSync(AUDIT_MIGRATION_PATH, "utf8");
 const roleGuardrailsMigrationSql = readFileSync(ROLE_GUARDRAILS_MIGRATION_PATH, "utf8");
+const roleReassertMigrationSql = readFileSync(ROLE_REASSERT_MIGRATION_PATH, "utf8");
 
 const tableNameSchema = z.string().regex(/^[a-z0-9_]+$/);
 const tableNamesSchema = z.array(tableNameSchema).min(1);
@@ -138,5 +140,20 @@ test("role guardrails migration normalizes and constrains profile role values", 
   assert.match(
     roleGuardrailsMigrationSql,
     /ADD CONSTRAINT profiles_role_allowed[\s\S]*CHECK \(role IN \('admin', 'manager', 'commercial'\)\)/mi,
+  );
+});
+
+test("role reassert migration keeps normalization active via trigger", () => {
+  assert.match(
+    roleReassertMigrationSql,
+    /UPDATE public\.profiles[\s\S]*SET role = lower\(trim\(role\)\)/mi,
+  );
+  assert.match(
+    roleReassertMigrationSql,
+    /CREATE OR REPLACE FUNCTION public\.normalize_profile_role\(\)/mi,
+  );
+  assert.match(
+    roleReassertMigrationSql,
+    /CREATE TRIGGER trg_profiles_normalize_role[\s\S]*BEFORE INSERT OR UPDATE ON public\.profiles/mi,
   );
 });
