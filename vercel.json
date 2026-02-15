@@ -1,5 +1,5 @@
 {
   "framework": "nextjs",
-  "installCommand": "npm install && npm --prefix StableMed install",
+  "installCommand": "npm --prefix StableMed ci",
   "buildCommand": "npm --prefix StableMed run build"
 }
