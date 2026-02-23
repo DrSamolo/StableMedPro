@@ -33,6 +33,10 @@ const Settings: React.FC = () => {
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isPasswordSectionOpen, setIsPasswordSectionOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Team Data State
@@ -393,6 +397,50 @@ const Settings: React.FC = () => {
     } finally {
       if (event.target) event.target.value = '';
       setIsUploading(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!user?.id) {
+      addNotification('error', 'Utilisateur non authentifié.');
+      return;
+    }
+
+    if (!newPassword || !confirmNewPassword) {
+      addNotification('error', 'Veuillez renseigner et confirmer le nouveau mot de passe.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      addNotification('error', 'Le mot de passe doit contenir au moins 6 caractères.');
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      addNotification('error', 'Les mots de passe ne correspondent pas.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+
+      setNewPassword('');
+      setConfirmNewPassword('');
+      addNotification('success', 'Mot de passe mis à jour.');
+    } catch (error: any) {
+      const rawMessage = String(error?.message || '');
+      const normalizedMessage =
+        rawMessage === 'Password should be at least 6 characters'
+          ? 'Le mot de passe doit contenir au moins 6 caractères.'
+          : rawMessage.toLowerCase().includes('session')
+            ? 'Session expirée ou invalide. Reconnectez-vous puis réessayez.'
+            : rawMessage.toLowerCase().includes('same')
+              ? 'Le nouveau mot de passe doit être différent de l’ancien.'
+              : rawMessage || 'Impossible de modifier le mot de passe.';
+
+      addNotification('error', normalizedMessage);
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -846,6 +894,81 @@ const Settings: React.FC = () => {
                              <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium capitalize text-zinc-700">
                                {profile?.role}
                              </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-8 rounded-md border border-border bg-zinc-50/40 p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-start gap-3">
+                            <div className="mt-0.5 rounded-md border border-border bg-white p-2 text-secondary">
+                              <Lock size={14} />
+                            </div>
+                            <div>
+                              <h4 className="text-sm font-medium text-primary">Changer le mot de passe</h4>
+                              <p className="mt-1 text-xs text-secondary">
+                                Mettez à jour votre mot de passe sans modifier vos autres informations.
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsPasswordSectionOpen((prev) => !prev)}
+                            className="ui-focus inline-flex items-center gap-1 rounded-md border border-border bg-white px-2.5 py-1.5 text-xs font-medium text-secondary transition-colors hover:text-primary hover:bg-zinc-50"
+                            aria-expanded={isPasswordSectionOpen}
+                          >
+                            {isPasswordSectionOpen ? 'Masquer' : 'Modifier'}
+                          </button>
+                        </div>
+
+                        <div
+                          aria-hidden={!isPasswordSectionOpen}
+                          className={`grid overflow-hidden transition-all duration-200 ease-out ${
+                            isPasswordSectionOpen
+                              ? 'mt-4 grid-rows-[1fr] opacity-100'
+                              : 'mt-0 grid-rows-[0fr] opacity-0 pointer-events-none'
+                          }`}
+                        >
+                          <div className="min-h-0">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                              <div>
+                                <label className="ui-field-label">Nouveau mot de passe</label>
+                                <input
+                                  type="password"
+                                  minLength={6}
+                                  autoComplete="new-password"
+                                  value={newPassword}
+                                  onChange={(e) => setNewPassword(e.target.value)}
+                                  disabled={!isPasswordSectionOpen}
+                                  className="ui-input bg-white"
+                                  placeholder="Min. 6 caractères"
+                                />
+                              </div>
+                              <div>
+                                <label className="ui-field-label">Confirmer le mot de passe</label>
+                                <input
+                                  type="password"
+                                  minLength={6}
+                                  autoComplete="new-password"
+                                  value={confirmNewPassword}
+                                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                                  disabled={!isPasswordSectionOpen}
+                                  className="ui-input bg-white"
+                                  placeholder="Répétez le mot de passe"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="mt-4 flex justify-end border-t border-border pt-4">
+                              <button
+                                onClick={handleChangePassword}
+                                disabled={isChangingPassword || !isPasswordSectionOpen}
+                                className="ui-btn ui-btn-secondary"
+                              >
+                                {isChangingPassword ? <Loader2 size={14} className="animate-spin" /> : <Lock size={14} />}
+                                {isChangingPassword ? 'Mise à jour...' : 'Mettre à jour le mot de passe'}
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
