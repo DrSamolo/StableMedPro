@@ -131,11 +131,16 @@ type LeadWonInfoRecord = {
     amount: number;
   } | null;
 };
+type TrainingDisplayItem = {
+  title: string;
+  organization: string | null;
+};
 
 const Leads: React.FC = () => {
   const { user, profile, permissions } = useAuth();
   const { selectedTeamId, selectedUserId, users, teams } = useData();
   const { addNotification, pushAppNotification } = useNotification();
+  const isRepresentant = (profile?.role ?? '').trim().toLowerCase() === 'representant';
   
   const [leads, setLeads] = useState<Lead[]>([]);
   const [trainings, setTrainings] = useState<Training[]>([]);
@@ -173,6 +178,8 @@ const Leads: React.FC = () => {
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [submittingNote, setSubmittingNote] = useState(false);
   const [leadWonInfo, setLeadWonInfo] = useState<LeadWonInfoRecord | null>(null);
+  const [leadWonTrainings, setLeadWonTrainings] = useState<TrainingDisplayItem[]>([]);
+  const [leadTrainingsByLeadId, setLeadTrainingsByLeadId] = useState<Record<string, TrainingDisplayItem[]>>({});
   const [loadingLeadWonInfo, setLoadingLeadWonInfo] = useState(false);
   const [isLeadWonInfoModalOpen, setIsLeadWonInfoModalOpen] = useState(false);
 
@@ -216,6 +223,13 @@ const Leads: React.FC = () => {
   const [trainingSearch, setTrainingSearch] = useState('');
   const [showTrainingDropdown, setShowTrainingDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const getDisplayedLeadTrainings = (leadId: string, isWonLead: boolean) => {
+    const associatedLeadTrainings = leadTrainingsByLeadId[leadId] ?? [];
+    if (associatedLeadTrainings.length > 0) return associatedLeadTrainings;
+    if (isWonLead && leadWonTrainings.length > 0) return leadWonTrainings;
+    return [];
+  };
 
   useEffect(() => {
     if (user) {
@@ -285,6 +299,7 @@ const Leads: React.FC = () => {
   useEffect(() => {
     if (!selectedLead || selectedLead.status !== 'won') {
       setLeadWonInfo(null);
+      setLeadWonTrainings([]);
       setLoadingLeadWonInfo(false);
       return;
     }
@@ -308,16 +323,41 @@ const Leads: React.FC = () => {
       if (!mounted) return;
       if (error) {
         setLeadWonInfo(null);
+        setLeadWonTrainings([]);
       } else {
         const row = data as any;
+        const normalizedDeal = row?.deals ? (Array.isArray(row.deals) ? row.deals[0] : row.deals) : null;
         setLeadWonInfo(
           row
             ? {
                 ...row,
-                deals: Array.isArray(row.deals) ? row.deals[0] : row.deals,
+                deals: normalizedDeal,
               }
             : null,
         );
+
+        const dealId = normalizedDeal?.id as string | undefined;
+        if (dealId) {
+          const { data: trainingRows, error: trainingError } = await supabase
+            .from('deal_trainings')
+            .select('training:trainings(title,organization)')
+            .eq('deal_id', dealId);
+
+          if (!trainingError) {
+            const unique = new Map<string, TrainingDisplayItem>();
+            ((trainingRows ?? []) as Array<{ training?: { title?: string | null; organization?: string | null } | null }>).forEach((row) => {
+              const title = row.training?.title?.trim() || '';
+              if (!title) return;
+              const organization = row.training?.organization?.trim() || null;
+              unique.set(title, { title, organization });
+            });
+            setLeadWonTrainings(Array.from(unique.values()));
+          } else {
+            setLeadWonTrainings([]);
+          }
+        } else {
+          setLeadWonTrainings([]);
+        }
       }
       setLoadingLeadWonInfo(false);
     })();
@@ -507,7 +547,34 @@ const Leads: React.FC = () => {
       if (rowsError) throw rowsError;
 
       setTotalFilteredLeads(Number(count ?? 0));
-      mapAndSetLeads((data ?? []) as any[]);
+      const mapped = mapAndSetLeads((data ?? []) as any[]);
+      const leadIds = mapped.map((lead) => lead.id).filter(Boolean);
+      if (leadIds.length > 0) {
+        const { data: trainingRows, error: leadTrainingsError } = await supabase
+          .from('lead_trainings')
+          .select('lead_id,training:trainings(title,organization)')
+          .in('lead_id', leadIds);
+
+        if (!leadTrainingsError) {
+          const byLeadIdMap: Record<string, Map<string, TrainingDisplayItem>> = {};
+          ((trainingRows ?? []) as Array<{ lead_id: string; training?: { title?: string | null; organization?: string | null } | null }>).forEach((row) => {
+            const title = row.training?.title?.trim() || '';
+            if (!title) return;
+            const organization = row.training?.organization?.trim() || null;
+            if (!byLeadIdMap[row.lead_id]) byLeadIdMap[row.lead_id] = new Map<string, TrainingDisplayItem>();
+            byLeadIdMap[row.lead_id].set(title, { title, organization });
+          });
+          const byLeadId: Record<string, TrainingDisplayItem[]> = {};
+          Object.keys(byLeadIdMap).forEach((leadId) => {
+            byLeadId[leadId] = Array.from(byLeadIdMap[leadId].values());
+          });
+          setLeadTrainingsByLeadId(byLeadId);
+        } else {
+          setLeadTrainingsByLeadId({});
+        }
+      } else {
+        setLeadTrainingsByLeadId({});
+      }
     } catch (error: any) {
       console.warn('Critical Leads Error', error?.message || error);
       setLeads([]);
@@ -706,6 +773,10 @@ const Leads: React.FC = () => {
   };
 
   const executeBulkAssign = async () => {
+    if (isRepresentant) {
+      addNotification('error', "Le rôle Représentant ne peut pas réassigner des leads.");
+      return;
+    }
     setIsProcessingBulk(true);
     let targetLeadIds: string[] = [];
 
@@ -757,6 +828,10 @@ const Leads: React.FC = () => {
   };
 
   const executeBulkDelete = async () => {
+      if (isRepresentant) {
+          addNotification('error', "Le rôle Représentant ne peut pas supprimer des leads.");
+          return;
+      }
       const targetLeadIds = await resolveTargetLeadIds();
       if (targetLeadIds.length === 0) return;
       if (!permissions?.can_delete_leads && profile?.role !== 'admin') {
@@ -839,6 +914,10 @@ const Leads: React.FC = () => {
   };
 
   const handleCreateLead = async () => {
+    if (isRepresentant) {
+        addNotification('error', "Le rôle Représentant ne peut pas créer de leads.");
+        return;
+    }
     if ((!newLead.first_name && !newLead.last_name) || !user) {
         addNotification('error', "Nom et Prénom requis");
         return;
@@ -876,6 +955,11 @@ const Leads: React.FC = () => {
   };
 
   const handleImportCSV = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (isRepresentant) {
+      addNotification('error', "Le rôle Représentant ne peut pas importer de leads.");
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
     if (!event.target.files || !event.target.files[0] || !user) return;
     const file = event.target.files[0];
     const reader = new FileReader();
@@ -934,6 +1018,10 @@ const Leads: React.FC = () => {
   };
 
   const handleConfirmCsvImport = async () => {
+    if (isRepresentant) {
+      addNotification('error', "Le rôle Représentant ne peut pas importer de leads.");
+      return;
+    }
     if (!user || csvHeaders.length === 0 || csvRows.length === 0) return;
 
     const mappedFields = Object.values(csvMapping).filter((field) => field !== 'ignore');
@@ -1108,6 +1196,10 @@ const Leads: React.FC = () => {
   };
 
   const handleConvertToDeal = async () => {
+    if (isRepresentant) {
+      addNotification('error', "Le rôle Représentant ne peut pas créer d’opportunités.");
+      return;
+    }
     if (!selectedLead || !user) return;
     const selectedTrainingObjects = trainings.filter(t => selectedTrainingIds.includes(t.id));
     const totalAmount = selectedTrainingObjects.reduce((sum, t) => sum + t.price, 0);
@@ -1152,7 +1244,7 @@ const Leads: React.FC = () => {
     setIsConvertModalOpen(false);
     
     // Notify Manager/Admin
-    if (profile?.role === 'commercial') {
+    if (profile?.role === 'commercial' || profile?.role === 'representant') {
         pushAppNotification(
             'Nouvelle Opportunité',
             `${profile.full_name} a converti ${selectedLead.name} en opportunité.`,
@@ -1175,6 +1267,10 @@ const Leads: React.FC = () => {
   };
 
   const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+      if (isRepresentant) {
+        addNotification('error', "Le rôle Représentant ne peut pas modifier le statut.");
+        return;
+      }
       if (!selectedLead) return;
       const newStatus = e.target.value as Lead['status'];
       const isPromotedToWon = newStatus === 'won' && selectedLead.status !== 'won';
@@ -1237,6 +1333,10 @@ const Leads: React.FC = () => {
   };
 
   const handleAssigneeChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+      if (isRepresentant) {
+        addNotification('error', "Le rôle Représentant ne peut pas réassigner un lead.");
+        return;
+      }
       if (!selectedLead) return;
       const newUserId = e.target.value;
       const { error } = await supabase.from('leads').update({ user_id: newUserId }).eq('id', selectedLead.id);
@@ -1264,6 +1364,10 @@ const Leads: React.FC = () => {
   };
 
   const saveLeadDraft = async () => {
+    if (isRepresentant) {
+      addNotification('error', "Le rôle Représentant ne peut pas modifier les informations du lead.");
+      return;
+    }
     if (!selectedLead || !leadDraft) return;
     setIsSavingLeadDraft(true);
     try {
@@ -1303,6 +1407,10 @@ const Leads: React.FC = () => {
 
   const handleCall = async (lead: Lead, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isRepresentant) {
+        addNotification('error', "Le rôle Représentant ne peut pas initier d'actions modifiant le lead.");
+        return;
+    }
     
     if (!lead.phone) {
         addNotification('warning', "Aucun numéro de téléphone pour ce contact.");
@@ -1518,6 +1626,20 @@ const Leads: React.FC = () => {
                             <span className="truncate text-sm font-medium">{lead.name}</span>
                             {lead.client_reference && <span className="ml-2 rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-500">{lead.client_reference}</span>}
                             <div className="mt-0.5 truncate text-[12px] text-zinc-500">{lead.email}</div>
+                            {(leadTrainingsByLeadId[lead.id] ?? []).length > 0 ? (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {(leadTrainingsByLeadId[lead.id] ?? []).slice(0, 2).map((training) => (
+                                  <span key={training.title} className="max-w-[180px] truncate rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-600">
+                                    {training.title}
+                                  </span>
+                                ))}
+                                {(leadTrainingsByLeadId[lead.id] ?? []).length > 2 ? (
+                                  <span className="rounded bg-white px-1.5 py-0.5 text-[10px] text-zinc-500">
+                                    +{(leadTrainingsByLeadId[lead.id] ?? []).length - 2}
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : null}
                             </div>
                         </div>
                         </td>
@@ -1831,7 +1953,7 @@ const Leads: React.FC = () => {
                     </div>
                </div>
                <div>
-                   <select value={selectedLead.status} onChange={handleStatusChange} className="block w-32 py-1.5 px-3 text-sm border border-border bg-white rounded-md focus:outline-none focus:ring-1 focus:ring-primary">
+                   <select value={selectedLead.status} onChange={handleStatusChange} disabled={isRepresentant} className="block w-32 py-1.5 px-3 text-sm border border-border bg-white rounded-md focus:outline-none focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60">
                        <option value="new">Nouveau</option>
                        <option value="contacted">Contacté</option>
                        <option value="qualified">Qualifié</option>
@@ -1852,7 +1974,7 @@ const Leads: React.FC = () => {
                 <select 
                     value={selectedLead.user_id || ''} 
                     onChange={handleAssigneeChange} 
-                    disabled={profile?.role === 'commercial'} 
+                    disabled={profile?.role === 'commercial' || isRepresentant} 
                     className="bg-transparent text-sm font-medium text-primary outline-none text-right cursor-pointer hover:underline disabled:cursor-not-allowed w-1/2"
                 >
                     <option value="">Non assigné</option>
@@ -1860,6 +1982,7 @@ const Leads: React.FC = () => {
                 </select>
             </div>
 
+            {!isRepresentant ? (
             <div className="p-4 bg-gray-900 rounded-lg text-white">
                 <div className="flex items-start gap-3">
                     <div className="p-2 bg-gray-800 rounded-md"><Kanban size={18} /></div>
@@ -1869,6 +1992,7 @@ const Leads: React.FC = () => {
                     </div>
                 </div>
             </div>
+            ) : null}
 
             {selectedLead.status === 'won' && (
               <div className="space-y-3 rounded-md border border-zinc-200 bg-zinc-50 p-4">
@@ -1888,12 +2012,43 @@ const Leads: React.FC = () => {
                     <p><span className="text-secondary">Montant:</span> {leadWonInfo.deals?.amount?.toLocaleString?.() ?? '-'} €</p>
                     <p><span className="text-secondary">Session:</span> {leadWonInfo.session_label || '-'}</p>
                     <p><span className="text-secondary">Preuve:</span> {leadWonInfo.proof_url ? <a href={leadWonInfo.proof_url} target="_blank" rel="noreferrer" className="text-primary underline">Ouvrir</a> : '-'}</p>
+                    <div className="md:col-span-2">
+                      <span className="text-secondary">Formations & organismes:</span>
+                      {leadWonTrainings.length > 0 ? (
+                        <div className="mt-1 space-y-1">
+                          {leadWonTrainings.map((training) => (
+                            <p key={training.title} className="text-sm text-primary">
+                              {training.title} <span className="text-secondary">— {training.organization || 'Organisme non renseigné'}</span>
+                            </p>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="ml-1">-</span>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <p className="text-sm text-secondary">Aucune information vente enregistrée.</p>
                 )}
               </div>
             )}
+
+            <div className="space-y-2 rounded-md border border-zinc-200 bg-zinc-50 p-4">
+              <h4 className="text-sm font-semibold text-primary uppercase tracking-wide">Formations associées</h4>
+              {getDisplayedLeadTrainings(selectedLead.id, selectedLead.status === 'won').length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {getDisplayedLeadTrainings(selectedLead.id, selectedLead.status === 'won').map((training) => (
+                    <span key={training.title} className="inline-flex items-center rounded border border-zinc-200 bg-white px-2 py-1 text-xs text-zinc-700">
+                      {training.title}
+                      <span className="mx-1 text-zinc-400">•</span>
+                      <span className="text-zinc-500">{training.organization || 'Organisme non renseigné'}</span>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-secondary">Aucune formation associée.</p>
+              )}
+            </div>
 
             <div className="space-y-4">
                 <h4 className="text-sm font-medium text-primary uppercase tracking-wide">Informations Détaillées</h4>
@@ -1941,12 +2096,14 @@ const Leads: React.FC = () => {
                         placeholder="Non renseignée"
                       />
                     </div>
+                    {!isRepresentant ? (
                     <div className="flex justify-end md:col-span-2">
                       <button onClick={saveLeadDraft} disabled={isSavingLeadDraft} className="ui-btn ui-btn-primary disabled:opacity-50">
                         {isSavingLeadDraft ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                         Enregistrer
                       </button>
                     </div>
+                    ) : null}
                 </div>
             </div>
             
@@ -1977,6 +2134,20 @@ const Leads: React.FC = () => {
               <p><span className="text-secondary">Enregistrement 1:</span> {leadWonInfo.recording_1_url ? <a href={leadWonInfo.recording_1_url} target="_blank" rel="noreferrer" className="text-primary underline">Ouvrir</a> : '-'}</p>
               <p><span className="text-secondary">Enregistrement 2:</span> {leadWonInfo.recording_2_url ? <a href={leadWonInfo.recording_2_url} target="_blank" rel="noreferrer" className="text-primary underline">Ouvrir</a> : '-'}</p>
               <p><span className="text-secondary">Screen preuve:</span> {leadWonInfo.proof_url ? <a href={leadWonInfo.proof_url} target="_blank" rel="noreferrer" className="text-primary underline">Ouvrir</a> : '-'}</p>
+              <div className="md:col-span-2">
+                <span className="text-secondary">Formations & organismes:</span>
+                {leadWonTrainings.length > 0 ? (
+                  <div className="mt-1 space-y-1">
+                    {leadWonTrainings.map((training) => (
+                      <p key={training.title}>
+                        {training.title} <span className="text-secondary">— {training.organization || 'Organisme non renseigné'}</span>
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="ml-1">-</span>
+                )}
+              </div>
               <p><span className="text-secondary">Commentaire vente:</span> {leadWonInfo.sale_comment || '-'}</p>
               <p><span className="text-secondary">Commentaire suivi:</span> {leadWonInfo.followup_comment || '-'}</p>
               <p><span className="text-secondary">Commentaire organisme:</span> {leadWonInfo.organization_comment || '-'}</p>
@@ -1996,7 +2167,7 @@ const Leads: React.FC = () => {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="rounded-md border border-zinc-200 bg-zinc-50/60 p-3 md:col-span-2">
                     <label className="ui-field-label">Assigné à</label>
-                    <select value={newLead.user_id} onChange={(e) => setNewLead({...newLead, user_id: e.target.value})} disabled={profile?.role === 'commercial'} className="ui-input">
+                    <select value={newLead.user_id} onChange={(e) => setNewLead({...newLead, user_id: e.target.value})} disabled={profile?.role === 'commercial' || profile?.role === 'representant'} className="ui-input">
                         <option value="">Assigner automatiquement (Moi)</option>
                         {users.map(u => (<option key={u.id} value={u.id}>{u.full_name || u.email}</option>))}
                     </select>
@@ -2012,7 +2183,7 @@ const Leads: React.FC = () => {
                 <div className="rounded-md border border-yellow-100 bg-yellow-50/50 p-3 md:col-span-2"><label className="mb-1 flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.06em] text-yellow-800"><Lock size={10} /> Info Sécurisée</label><input type="text" value={newLead.secure_info} onChange={(e) => setNewLead({...newLead, secure_info: e.target.value})} className="ui-input border-yellow-200 bg-white" /></div>
                 <div className="mt-2 flex justify-end gap-2 border-t border-zinc-200 pt-4 md:col-span-2">
                     <button onClick={() => setIsCreateModalOpen(false)} className="ui-btn ui-btn-secondary">Annuler</button>
-                    <button onClick={handleCreateLead} className="ui-btn ui-btn-primary">Créer</button>
+                    <button onClick={handleCreateLead} disabled={isRepresentant} className="ui-btn ui-btn-primary disabled:cursor-not-allowed disabled:opacity-60">Créer</button>
                 </div>
             </div>
       </SlideOver>

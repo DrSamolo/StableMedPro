@@ -8,12 +8,14 @@ const MIGRATION_PATH = new URL("../supabase/migrations/20260211_step1_rls_founda
 const AUDIT_MIGRATION_PATH = new URL("../supabase/migrations/20260211_step1_2_audit_logging.sql", import.meta.url);
 const ROLE_GUARDRAILS_MIGRATION_PATH = new URL("../supabase/migrations/20260211_step1_3_profile_role_guardrails.sql", import.meta.url);
 const ROLE_REASSERT_MIGRATION_PATH = new URL("../supabase/migrations/20260215_step5_31_profile_role_reassert_normalization.sql", import.meta.url);
+const TRAININGS_RLS_HARDENING_MIGRATION_PATH = new URL("../supabase/migrations/20260214_step5_23_trainings_admin_only_rls_hardening.sql", import.meta.url);
 
 const baseSchemaSql = readFileSync(BASE_SCHEMA_PATH, "utf8");
 const migrationSql = readFileSync(MIGRATION_PATH, "utf8");
 const auditMigrationSql = readFileSync(AUDIT_MIGRATION_PATH, "utf8");
 const roleGuardrailsMigrationSql = readFileSync(ROLE_GUARDRAILS_MIGRATION_PATH, "utf8");
 const roleReassertMigrationSql = readFileSync(ROLE_REASSERT_MIGRATION_PATH, "utf8");
+const trainingsRlsHardeningMigrationSql = readFileSync(TRAININGS_RLS_HARDENING_MIGRATION_PATH, "utf8");
 
 const tableNameSchema = z.string().regex(/^[a-z0-9_]+$/);
 const tableNamesSchema = z.array(tableNameSchema).min(1);
@@ -155,5 +157,28 @@ test("role reassert migration keeps normalization active via trigger", () => {
   assert.match(
     roleReassertMigrationSql,
     /CREATE TRIGGER trg_profiles_normalize_role[\s\S]*BEFORE INSERT OR UPDATE ON public\.profiles/mi,
+  );
+});
+
+test("trainings hardening migration enforces authenticated read and admin-only writes", () => {
+  assert.match(
+    trainingsRlsHardeningMigrationSql,
+    /ALTER TABLE public\.trainings ENABLE ROW LEVEL SECURITY[\s\S]*ALTER TABLE public\.trainings FORCE ROW LEVEL SECURITY/mi,
+  );
+  assert.match(
+    trainingsRlsHardeningMigrationSql,
+    /CREATE POLICY trainings_select_authenticated ON public\.trainings[\s\S]*FOR SELECT[\s\S]*TO authenticated[\s\S]*USING \(true\)/mi,
+  );
+  assert.match(
+    trainingsRlsHardeningMigrationSql,
+    /CREATE POLICY trainings_insert_admin_only ON public\.trainings[\s\S]*WITH CHECK \(public\.is_admin\(auth\.uid\(\)\)\)/mi,
+  );
+  assert.match(
+    trainingsRlsHardeningMigrationSql,
+    /CREATE POLICY trainings_update_admin_only ON public\.trainings[\s\S]*USING \(public\.is_admin\(auth\.uid\(\)\)\)[\s\S]*WITH CHECK \(public\.is_admin\(auth\.uid\(\)\)\)/mi,
+  );
+  assert.match(
+    trainingsRlsHardeningMigrationSql,
+    /CREATE POLICY trainings_delete_admin_only ON public\.trainings[\s\S]*USING \(public\.is_admin\(auth\.uid\(\)\)\)/mi,
   );
 });

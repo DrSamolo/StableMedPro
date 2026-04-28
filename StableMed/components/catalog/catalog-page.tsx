@@ -27,10 +27,139 @@ const DEFAULT_ORGANIZATIONS = [
   'FIF PL',
   'OPCO EP',
 ];
+const FUNDER_OPTIONS = ['DPC', 'FIF-PL'] as const;
+const DEFAULT_TRAINING_IMAGE =
+  'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80&w=1200';
+const IMAGE_DOCTOR_GENERAL =
+  'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=1200';
+const IMAGE_NURSE =
+  'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&q=80&w=1200';
+const IMAGE_CARDIO =
+  'https://images.unsplash.com/photo-1530026405186-ed1f139313f8?auto=format&fit=crop&q=80&w=1200';
+const IMAGE_REHAB =
+  'https://images.unsplash.com/photo-1599058917212-d750089bc07e?auto=format&fit=crop&q=80&w=1200';
+const TRAINING_IMAGE_BY_TARGET_AUDIENCE: Array<{ keywords: string[]; image: string }> = [
+  {
+    keywords: [
+      'medecin',
+      'médecin',
+      'generaliste',
+      'généraliste',
+      'sage-femme',
+      'sage femme',
+      'maieuticien',
+      'maïeuticien',
+      'maieutique',
+      'maïeutique',
+      'gynecologue',
+      'gynécologue',
+      'obstetricien',
+      'obstétricien',
+      'pediatre',
+      'pédiatre',
+      'dermatologue',
+      'ophtalmologue',
+      'orl',
+      'urologue',
+      'endocrinologue',
+      'nephrologue',
+      'néphrologue',
+      'rhumatologue',
+      'psychiatre',
+      'neurologue',
+      'oncologue',
+      'radiologue',
+      'anesthesiste',
+      'anesthésiste',
+      'urgentiste',
+      'geriatre',
+      'gériatre',
+      'interniste',
+      'infectiologue',
+    ],
+    image: IMAGE_DOCTOR_GENERAL,
+  },
+  {
+    keywords: ['infirmier', 'ide', 'infirmiere'],
+    image: IMAGE_NURSE,
+  },
+  {
+    keywords: ['cardiologue', 'cardiologie', 'cardio'],
+    image: IMAGE_CARDIO,
+  },
+  {
+    keywords: [
+      'kinesitherapeute',
+      'kinésithérapeute',
+      'kine',
+      'kiné',
+      'physiotherapeute',
+      'physiothérapeute',
+      'osteopathe',
+      'ostéopathe',
+      'ergotherapeute',
+      'ergothérapeute',
+      'psychomotricien',
+      'podologue',
+      'pedicure',
+      'pédicure',
+      'orthophoniste',
+      'orthoptiste',
+      'aide-soignant',
+      'aide soignant',
+      'manip radio',
+      'manipulateur',
+      'ambulancier',
+      'brancardier',
+      'preparateur physique',
+      'préparateur physique',
+    ],
+    image: IMAGE_REHAB,
+  },
+  {
+    keywords: [
+      'pharmacien',
+      'pharmacie',
+      'preparateur en pharmacie',
+      'préparateur en pharmacie',
+      'biologiste',
+      'laborantin',
+      'technicien de laboratoire',
+      'technicien laboratoire',
+      'dieteticien',
+      'diététicien',
+      'nutritionniste',
+    ],
+    image: IMAGE_DOCTOR_GENERAL,
+  },
+  {
+    keywords: ['dentiste', 'chirurgien-dentiste', 'orthodontiste'],
+    image: IMAGE_DOCTOR_GENERAL,
+  },
+];
+
+const normalizeAudienceKey = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+
+const getTrainingImageFromAudience = (targetAudience: string) => {
+  const normalizedAudience = normalizeAudienceKey(targetAudience);
+  if (!normalizedAudience) return DEFAULT_TRAINING_IMAGE;
+
+  const match = TRAINING_IMAGE_BY_TARGET_AUDIENCE.find(({ keywords }) =>
+    keywords.some((keyword) => normalizedAudience.includes(normalizeAudienceKey(keyword)))
+  );
+  return match?.image ?? DEFAULT_TRAINING_IMAGE;
+};
 
 const Catalog: React.FC = () => {
   const { user, profile, permissions } = useAuth();
   const { addNotification } = useNotification();
+  const normalizedRole = (profile?.role ?? '').trim().toLowerCase();
+  const isAdmin = normalizedRole === 'admin';
   const [trainings, setTrainings] = useState<Training[]>([]);
   const [loading, setLoading] = useState(true);
   useSectionPerf('catalog', loading);
@@ -38,12 +167,16 @@ const Catalog: React.FC = () => {
   // Selection & Details
   const [selectedTraining, setSelectedTraining] = useState<Training | null>(null);
   const [loadingTrainingDetails, setLoadingTrainingDetails] = useState(false);
+  const [isEditTrainingOpen, setIsEditTrainingOpen] = useState(false);
+  const [isSavingTrainingEdits, setIsSavingTrainingEdits] = useState(false);
+  const [editTrainingForm, setEditTrainingForm] = useState<Partial<Training>>({});
 
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTarget, setSelectedTarget] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
   const [selectedOrg, setSelectedOrg] = useState('all');
+  const [selectedFunder, setSelectedFunder] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
   const [isCompactTableLayout, setIsCompactTableLayout] = useState(false);
   const tableViewportRef = useRef<HTMLDivElement | null>(null);
@@ -196,7 +329,7 @@ const Catalog: React.FC = () => {
     const fetchPage = async (cursor: string | null, limit: number) => {
       let query = supabase
         .from('trainings')
-        .select('id,title,target_audience,training_type,format,organization,price,image,status,created_at')
+        .select('id,title,target_audience,training_type,format,organization,funder,price,image,status,created_at')
         .order('id', { ascending: false })
         .limit(limit);
       if (cursor) {
@@ -315,7 +448,7 @@ const Catalog: React.FC = () => {
         instructor_bio: newTraining.instructor_bio,
         program_details: newTraining.program_details,
         status: 'Actif',
-        image: newTraining.image || 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80&w=600',
+        image: getTrainingImageFromAudience(normalizedTargetAudience),
         e_learning_hours: isHybridFormat ? eLearningHours : null,
         epp_hours: isHybridFormat ? eppHours : null,
         virtual_class_hours: isHybridFormat ? virtualClassHours : null,
@@ -499,12 +632,98 @@ const Catalog: React.FC = () => {
     }
   };
 
+  const handleOpenEditTraining = () => {
+    if (!isAdmin || !selectedTraining) {
+      addNotification('error', 'Accès réservé aux administrateurs.');
+      return;
+    }
+
+    setEditTrainingForm({
+      title: selectedTraining.title ?? '',
+      organization: selectedTraining.organization ?? '',
+      target_audience: selectedTraining.target_audience ?? '',
+      training_type: selectedTraining.training_type ?? '',
+      format: selectedTraining.format ?? 'E-Learning',
+      duration_total: selectedTraining.duration_total ?? '',
+      price: Number(selectedTraining.price ?? 0),
+      compensation: Number(selectedTraining.compensation ?? 0),
+      funder: selectedTraining.funder ?? '',
+      reference: selectedTraining.reference ?? '',
+      instructor_name: selectedTraining.instructor_name ?? '',
+      instructor_bio: selectedTraining.instructor_bio ?? '',
+      program_details: selectedTraining.program_details ?? '',
+      image: selectedTraining.image ?? '',
+    });
+    setIsEditTrainingOpen(true);
+  };
+
+  const handleSaveTrainingEdits = async () => {
+    if (!isAdmin || !selectedTraining) {
+      addNotification('error', 'Accès réservé aux administrateurs.');
+      return;
+    }
+
+    const title = (editTrainingForm.title ?? '').trim();
+    const organization = (editTrainingForm.organization ?? '').trim();
+    if (!title) {
+      addNotification('error', 'Le titre est obligatoire.');
+      return;
+    }
+    if (!organization) {
+      addNotification('error', 'L’organisme est obligatoire.');
+      return;
+    }
+
+    setIsSavingTrainingEdits(true);
+    try {
+      const payload = {
+        title,
+        organization,
+        target_audience: (editTrainingForm.target_audience ?? '').trim() || null,
+        training_type: (editTrainingForm.training_type ?? '').trim() || null,
+        format: (editTrainingForm.format ?? '').trim() || null,
+        duration_total: (editTrainingForm.duration_total ?? '').trim() || null,
+        price: Number(editTrainingForm.price ?? 0),
+        compensation: Number(editTrainingForm.compensation ?? 0),
+        funder: (editTrainingForm.funder ?? '').trim() || null,
+        reference: (editTrainingForm.reference ?? '').trim() || null,
+        instructor_name: (editTrainingForm.instructor_name ?? '').trim() || null,
+        instructor_bio: (editTrainingForm.instructor_bio ?? '').trim() || null,
+        program_details: (editTrainingForm.program_details ?? '').trim() || null,
+        image: getTrainingImageFromAudience((editTrainingForm.target_audience ?? '').trim()),
+      };
+
+      const { data, error } = await supabase
+        .from('trainings')
+        .update(payload)
+        .eq('id', selectedTraining.id)
+        .select('*')
+        .single();
+
+      if (error) throw error;
+
+      const updatedTraining = data as Training;
+      setTrainings((prev) => prev.map((training) => (training.id === updatedTraining.id ? updatedTraining : training)));
+      setSelectedTraining(updatedTraining);
+      invalidateCached('catalog:list:');
+      invalidateCached('catalog:details:');
+      setCached(`catalog:details:${updatedTraining.id}`, updatedTraining);
+      setIsEditTrainingOpen(false);
+      addNotification('success', 'Fiche formation mise à jour.');
+    } catch (error: any) {
+      addNotification('error', `Erreur de mise à jour: ${error.message}`);
+    } finally {
+      setIsSavingTrainingEdits(false);
+    }
+  };
+
   // Filtering Logic
   const filteredTrainings = trainings.filter(t => {
       // Safe checks for potentially missing fields in old data
       const targetAudience = t.target_audience || '';
       const tType = t.training_type || '';
       const tOrg = t.organization || '';
+      const tFunder = t.funder || '';
       
       const matchesSearch = t.title.toLowerCase().includes(searchTerm.toLowerCase());
       
@@ -514,8 +733,9 @@ const Catalog: React.FC = () => {
         tType === selectedType ||
         (selectedType === 'Hybride' && t.format === 'Hybride');
       const matchesOrg = selectedOrg === 'all' || tOrg === selectedOrg;
+      const matchesFunder = selectedFunder === 'all' || tFunder === selectedFunder;
 
-      return matchesSearch && matchesTarget && matchesType && matchesOrg;
+      return matchesSearch && matchesTarget && matchesType && matchesOrg && matchesFunder;
   });
 
   // Calculate Unique Values for Dropdowns
@@ -539,6 +759,12 @@ const Catalog: React.FC = () => {
   const orgOptions = [
       { value: 'all', label: 'Tous organismes' },
       ...uniqueOrgs.map(t => ({ value: t, label: t }))
+  ];
+  const uniqueFunders = Array.from(new Set(trainings.map(t => t.funder).filter(Boolean))).sort();
+  const funderFilterValues = Array.from(new Set([...FUNDER_OPTIONS, ...uniqueFunders]));
+  const funderOptions = [
+      { value: 'all', label: 'Tous financeurs' },
+      ...funderFilterValues.map((funder) => ({ value: funder, label: funder }))
   ];
   const getFormatIcon = (format: string) => {
       switch(format) {
@@ -597,9 +823,18 @@ const Catalog: React.FC = () => {
                   minWidth="150px"
               />
 
-              {(selectedTarget !== 'all' || selectedType !== 'all' || selectedOrg !== 'all') && (
+              <CustomSelect 
+                  value={selectedFunder}
+                  onChange={setSelectedFunder}
+                  options={funderOptions}
+                  icon={Banknote}
+                  placeholder="Financeur"
+                  minWidth="150px"
+              />
+
+              {(selectedTarget !== 'all' || selectedType !== 'all' || selectedOrg !== 'all' || selectedFunder !== 'all') && (
                   <button 
-                      onClick={() => { setSelectedTarget('all'); setSelectedType('all'); setSelectedOrg('all'); }}
+                      onClick={() => { setSelectedTarget('all'); setSelectedType('all'); setSelectedOrg('all'); setSelectedFunder('all'); }}
                       className="ui-btn ui-btn-ghost h-9 px-3 py-0 text-xs"
                   >
                       Effacer
@@ -938,6 +1173,13 @@ const Catalog: React.FC = () => {
                           <h2 className="text-xl font-light text-white leading-tight">{selectedTraining.title}</h2>
                       </div>
                   </div>
+                  {isAdmin ? (
+                    <div className="flex justify-end">
+                      <button onClick={handleOpenEditTraining} className="ui-btn ui-btn-primary">
+                        Modifier la fiche
+                      </button>
+                    </div>
+                  ) : null}
 
                   {/* Section: Infos Générales */}
                   <div>
@@ -970,6 +1212,10 @@ const Catalog: React.FC = () => {
                                 ) : null}
                               </span>
                           </div>
+                          <div className="flex justify-between border-b border-gray-100 pb-2">
+                              <span className="text-secondary">Financeur</span>
+                              <span className="font-medium text-primary text-right">{selectedTraining.funder || 'DPC'}</span>
+                          </div>
                           <div className="flex justify-between">
                               <span className="text-secondary">Public cible</span>
                               <span className="font-medium text-primary text-right">{selectedTraining.target_audience}</span>
@@ -992,12 +1238,16 @@ const Catalog: React.FC = () => {
                               <span className="text-2xl font-light text-emerald-600">{selectedTraining.compensation} €</span>
                           </div>
                           <div className="bg-white border border-border p-3 rounded-lg shadow-sm">
+                              <span className="block text-secondary text-xs mb-1">Durée totale</span>
+                              <span className="text-base font-medium text-primary flex items-center gap-1"><Clock size={14}/> {selectedTraining.duration_total}</span>
+                          </div>
+                          <div className="bg-white border border-border p-3 rounded-lg shadow-sm">
                               <span className="block text-secondary text-xs mb-1">Financeur</span>
                               <span className="text-base font-medium text-primary">{selectedTraining.funder || 'DPC'}</span>
                           </div>
                           <div className="bg-white border border-border p-3 rounded-lg shadow-sm">
-                              <span className="block text-secondary text-xs mb-1">Durée totale</span>
-                              <span className="text-base font-medium text-primary flex items-center gap-1"><Clock size={14}/> {selectedTraining.duration_total}</span>
+                              <span className="block text-secondary text-xs mb-1">Rythme</span>
+                              <span className="text-base font-medium text-primary">{selectedTraining.format || '-'}</span>
                           </div>
                           {selectedTraining.format === 'Hybride' ? (
                             <div className="col-span-2 rounded-lg border border-zinc-200 bg-white p-3 shadow-sm">
@@ -1259,6 +1509,20 @@ const Catalog: React.FC = () => {
                                 />
                             </div>
                         </div>
+                        <div>
+                            <label className="text-[11px] font-medium text-secondary">Financeur</label>
+                            <select
+                                value={newTraining.funder || 'DPC'}
+                                onChange={(e) => setNewTraining({ ...newTraining, funder: e.target.value })}
+                                className="ui-input"
+                            >
+                                {FUNDER_OPTIONS.map((funder) => (
+                                  <option key={funder} value={funder}>
+                                    {funder}
+                                  </option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
 
                     {/* Block 4: Intervenant */}
@@ -1307,6 +1571,150 @@ const Catalog: React.FC = () => {
                         </button>
                     </div>
                 </div>
+       </SlideOver>
+
+       <SlideOver isOpen={isEditTrainingOpen} onClose={() => setIsEditTrainingOpen(false)} title="Modifier la fiche formation" maxWidth="xl">
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label className="ui-field-label">Titre</label>
+              <input
+                type="text"
+                value={editTrainingForm.title ?? ''}
+                onChange={(e) => setEditTrainingForm((prev) => ({ ...prev, title: e.target.value }))}
+                className="ui-input"
+              />
+            </div>
+            <div>
+              <label className="ui-field-label">Organisme</label>
+              <input
+                type="text"
+                value={editTrainingForm.organization ?? ''}
+                onChange={(e) => setEditTrainingForm((prev) => ({ ...prev, organization: e.target.value }))}
+                className="ui-input"
+              />
+            </div>
+            <div>
+              <label className="ui-field-label">Public cible</label>
+              <input
+                type="text"
+                value={editTrainingForm.target_audience ?? ''}
+                onChange={(e) => setEditTrainingForm((prev) => ({ ...prev, target_audience: e.target.value }))}
+                className="ui-input"
+              />
+            </div>
+            <div>
+              <label className="ui-field-label">Type</label>
+              <input
+                type="text"
+                value={editTrainingForm.training_type ?? ''}
+                onChange={(e) => setEditTrainingForm((prev) => ({ ...prev, training_type: e.target.value }))}
+                className="ui-input"
+              />
+            </div>
+            <div>
+              <label className="ui-field-label">Format</label>
+              <select
+                value={editTrainingForm.format ?? 'E-Learning'}
+                onChange={(e) => setEditTrainingForm((prev) => ({ ...prev, format: e.target.value as Training['format'] }))}
+                className="ui-input"
+              >
+                <option value="E-Learning">E-Learning</option>
+                <option value="Présentiel">Présentiel</option>
+                <option value="Classe Virtuelle">Classe Virtuelle</option>
+                <option value="Hybride">Hybride</option>
+              </select>
+            </div>
+            <div>
+              <label className="ui-field-label">Durée totale</label>
+              <input
+                type="text"
+                value={editTrainingForm.duration_total ?? ''}
+                onChange={(e) => setEditTrainingForm((prev) => ({ ...prev, duration_total: e.target.value }))}
+                className="ui-input"
+              />
+            </div>
+            <div>
+              <label className="ui-field-label">Prix (€)</label>
+              <input
+                type="number"
+                value={Number(editTrainingForm.price ?? 0)}
+                onChange={(e) => setEditTrainingForm((prev) => ({ ...prev, price: Number(e.target.value) }))}
+                className="ui-input"
+              />
+            </div>
+            <div>
+              <label className="ui-field-label">Indemnité (€)</label>
+              <input
+                type="number"
+                value={Number(editTrainingForm.compensation ?? 0)}
+                onChange={(e) => setEditTrainingForm((prev) => ({ ...prev, compensation: Number(e.target.value) }))}
+                className="ui-input"
+              />
+            </div>
+            <div>
+              <label className="ui-field-label">Financeur</label>
+              <select
+                value={editTrainingForm.funder ?? 'DPC'}
+                onChange={(e) => setEditTrainingForm((prev) => ({ ...prev, funder: e.target.value }))}
+                className="ui-input"
+              >
+                {FUNDER_OPTIONS.map((funder) => (
+                  <option key={funder} value={funder}>
+                    {funder}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="ui-field-label">Référence</label>
+              <input
+                type="text"
+                value={editTrainingForm.reference ?? ''}
+                onChange={(e) => setEditTrainingForm((prev) => ({ ...prev, reference: e.target.value }))}
+                className="ui-input"
+              />
+            </div>
+            <div className="md:col-span-2 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-xs text-secondary">
+              L’image de la formation est attribuée automatiquement selon le public cible.
+            </div>
+            <div>
+              <label className="ui-field-label">Intervenant</label>
+              <input
+                type="text"
+                value={editTrainingForm.instructor_name ?? ''}
+                onChange={(e) => setEditTrainingForm((prev) => ({ ...prev, instructor_name: e.target.value }))}
+                className="ui-input"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="ui-field-label">Bio intervenant</label>
+            <textarea
+              value={editTrainingForm.instructor_bio ?? ''}
+              onChange={(e) => setEditTrainingForm((prev) => ({ ...prev, instructor_bio: e.target.value }))}
+              className="ui-input h-20"
+            />
+          </div>
+          <div>
+            <label className="ui-field-label">Description / Programme</label>
+            <textarea
+              value={editTrainingForm.program_details ?? ''}
+              onChange={(e) => setEditTrainingForm((prev) => ({ ...prev, program_details: e.target.value }))}
+              className="ui-input h-32"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 border-t border-zinc-200 pt-4">
+            <button onClick={() => setIsEditTrainingOpen(false)} className="ui-btn ui-btn-secondary">
+              Annuler
+            </button>
+            <button onClick={handleSaveTrainingEdits} disabled={isSavingTrainingEdits} className="ui-btn ui-btn-primary">
+              {isSavingTrainingEdits ? <Loader2 size={14} className="animate-spin" /> : null}
+              Enregistrer
+            </button>
+          </div>
+        </div>
        </SlideOver>
 
     </div>

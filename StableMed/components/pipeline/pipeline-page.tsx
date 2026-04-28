@@ -97,6 +97,15 @@ type SaleCaptureForm = {
   organization_comment: string;
   unsubscription_comment: string;
 };
+type SaleCaptureAssetBaseline = Pick<
+  SaleCaptureForm,
+  | 'recording_1_url'
+  | 'recording_1_file_ref'
+  | 'recording_2_url'
+  | 'recording_2_file_ref'
+  | 'proof_url'
+  | 'proof_file_ref'
+>;
 
 type DealWinDetailsRecord = {
   id: string;
@@ -136,6 +145,14 @@ const buildEmptySaleCaptureForm = (): SaleCaptureForm => ({
   followup_comment: '',
   organization_comment: '',
   unsubscription_comment: '',
+});
+const buildEmptySaleCaptureAssetBaseline = (): SaleCaptureAssetBaseline => ({
+  recording_1_url: '',
+  recording_1_file_ref: '',
+  recording_2_url: '',
+  recording_2_file_ref: '',
+  proof_url: '',
+  proof_file_ref: '',
 });
 
 const PipelineColumn: React.FC<PipelineColumnProps> = ({ 
@@ -274,6 +291,9 @@ const Pipeline: React.FC = () => {
   const [isSavingSaleCapture, setIsSavingSaleCapture] = useState(false);
   const [isUploadingSaleAsset, setIsUploadingSaleAsset] = useState(false);
   const [saleCaptureUrlHandled, setSaleCaptureUrlHandled] = useState(false);
+  const [saleCaptureAssetBaseline, setSaleCaptureAssetBaseline] = useState<SaleCaptureAssetBaseline>(buildEmptySaleCaptureAssetBaseline());
+  const normalizedRole = (profile?.role ?? '').trim().toLowerCase();
+  const isAdmin = normalizedRole === 'admin';
   const [isSaleCaptureTrainingPickerOpen, setIsSaleCaptureTrainingPickerOpen] = useState(true);
   const [saleCaptureTrainingSearch, setSaleCaptureTrainingSearch] = useState('');
 
@@ -590,7 +610,7 @@ const Pipeline: React.FC = () => {
       }
       const { data } = await supabase
           .from('trainings')
-          .select('id,title,price')
+          .select('id,title,price,organization')
           .order('created_at', { ascending: false })
           .limit(300);
       if (data) {
@@ -628,12 +648,72 @@ const Pipeline: React.FC = () => {
       training_ids: prefilledTrainingIds,
       amount: deal?.amount || 0,
     });
+    setSaleCaptureAssetBaseline(buildEmptySaleCaptureAssetBaseline());
     setIsSaleCaptureTrainingPickerOpen(prefilledTrainingIds.length === 0);
     setIsSaleCaptureModalOpen(true);
   };
 
+  const isDealOwner = (deal: Deal | null) => {
+    if (!deal || !user?.id) return false;
+    return !!deal.owner_id && deal.owner_id === user.id;
+  };
+
+  const canEditConfirmedSale = !!selectedDeal && (isAdmin || isDealOwner(selectedDeal));
+  const isEditingExistingWonSale = saleCaptureMode === 'existing_deal' && !!saleCaptureDeal && saleCaptureDeal.stage === 'won';
+  const isOwnerNonAdminEditingWonSale = isEditingExistingWonSale && !isAdmin && !!saleCaptureDeal && isDealOwner(saleCaptureDeal);
+
+  const openEditConfirmedSale = async () => {
+    if (!selectedDeal || selectedDeal.stage !== 'won') return;
+    if (!canEditConfirmedSale) {
+      addNotification('error', 'Modification réservée au propriétaire de la vente ou à un admin.');
+      return;
+    }
+
+    openSaleCaptureModal('existing_deal', selectedDeal, selectedDeal.lead_id || null);
+
+    const { data, error } = await supabase
+      .from('deal_win_details')
+      .select('*')
+      .eq('deal_id', selectedDeal.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error || !data) return;
+    const details = data as DealWinDetailsRecord;
+    setSaleCaptureForm((prev) => ({
+      ...prev,
+      session_label: details.session_label || '',
+      first_connection_date: details.first_connection_date || '',
+      first_connection_time: details.first_connection_time || '',
+      first_connection_done: !!details.first_connection_done,
+      recording_1_url: details.recording_1_url || '',
+      recording_1_file_ref: details.recording_1_file_ref || '',
+      recording_2_url: details.recording_2_url || '',
+      recording_2_file_ref: details.recording_2_file_ref || '',
+      proof_url: details.proof_url || '',
+      proof_file_ref: details.proof_file_ref || '',
+      sale_comment: details.sale_comment || '',
+      followup_comment: details.followup_comment || '',
+      organization_comment: details.organization_comment || '',
+      unsubscription_comment: details.unsubscription_comment || '',
+    }));
+    setSaleCaptureAssetBaseline({
+      recording_1_url: details.recording_1_url || '',
+      recording_1_file_ref: details.recording_1_file_ref || '',
+      recording_2_url: details.recording_2_url || '',
+      recording_2_file_ref: details.recording_2_file_ref || '',
+      proof_url: details.proof_url || '',
+      proof_file_ref: details.proof_file_ref || '',
+    });
+  };
+
   const uploadSaleAsset = async (file: File, slot: 'recording_1' | 'recording_2' | 'proof') => {
     if (!user) return;
+    if (isEditingExistingWonSale && saleCaptureDeal && !(isAdmin || isDealOwner(saleCaptureDeal))) {
+      addNotification('error', 'Upload réservé au propriétaire de la vente ou à un admin.');
+      return;
+    }
     setIsUploadingSaleAsset(true);
     try {
       const extension = file.name.includes('.') ? file.name.split('.').pop() : 'bin';
@@ -673,6 +753,21 @@ const Pipeline: React.FC = () => {
       .map((t) => t.title)
       .join(', ');
 
+  const getTrainingTitleList = (trainingIds: string[]) =>
+    trainings
+      .filter((t) => trainingIds.includes(t.id))
+      .map((t) => t.title)
+      .filter(Boolean);
+
+  const getTrainingWithOrganizationList = (trainingIds: string[]) =>
+    trainings
+      .filter((t) => trainingIds.includes(t.id))
+      .map((t) => ({
+        title: t.title,
+        organization: t.organization || null,
+      }))
+      .filter((t) => !!t.title);
+
   const toggleSaleCaptureTraining = (trainingId: string) => {
     setSaleCaptureForm((prev) => {
       const exists = prev.training_ids.includes(trainingId);
@@ -703,6 +798,21 @@ const Pipeline: React.FC = () => {
       unsubscription_comment: form.unsubscription_comment || null,
       created_by: actorId,
     };
+    const { data: latest, error: latestError } = await supabase
+      .from('deal_win_details')
+      .select('id')
+      .eq('deal_id', dealId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestError) return latestError;
+
+    if (latest?.id) {
+      const { error } = await supabase.from('deal_win_details').update(payload).eq('id', latest.id);
+      return error;
+    }
+
     const { error } = await supabase.from('deal_win_details').insert(payload);
     return error;
   };
@@ -1029,6 +1139,29 @@ const Pipeline: React.FC = () => {
 
   const handleConfirmSaleCapture = async () => {
     if (!user) return;
+    if (isEditingExistingWonSale && saleCaptureDeal && !(isAdmin || isDealOwner(saleCaptureDeal))) {
+      addNotification('error', 'Modification réservée au propriétaire de la vente ou à un admin.');
+      return;
+    }
+    if (isOwnerNonAdminEditingWonSale) {
+      const protectedKeys: Array<keyof SaleCaptureAssetBaseline> = [
+        'recording_1_url',
+        'recording_1_file_ref',
+        'recording_2_url',
+        'recording_2_file_ref',
+        'proof_url',
+        'proof_file_ref',
+      ];
+      const triesToDeleteExistingAsset = protectedKeys.some((key) => {
+        const baselineValue = (saleCaptureAssetBaseline[key] ?? '').trim();
+        const currentValue = (saleCaptureForm[key] ?? '').trim();
+        return baselineValue.length > 0 && currentValue.length === 0;
+      });
+      if (triesToDeleteExistingAsset) {
+        addNotification('error', 'Seul un admin peut supprimer un fichier déjà téléversé.');
+        return;
+      }
+    }
 
     if (!saleCaptureForm.client_name.trim()) {
       addNotification('error', 'Le client est obligatoire.');
@@ -1201,6 +1334,7 @@ const Pipeline: React.FC = () => {
       setIsSaleCaptureModalOpen(false);
       setSaleCaptureDeal(null);
       setSaleCaptureLeadId(null);
+      setSaleCaptureAssetBaseline(buildEmptySaleCaptureAssetBaseline());
       setWonDealSummary({ leadName: targetLeadName, amount: targetAmount });
       setIsWonModalOpen(true);
 
@@ -1477,6 +1611,11 @@ const Pipeline: React.FC = () => {
           <div className="w-full rounded-md bg-white p-6">
                 <h3 className="mb-1 text-lg font-semibold text-primary">Informations de vente</h3>
                 <p className="mb-5 text-sm text-secondary">Renseignez les données métier avant confirmation.</p>
+                {isOwnerNonAdminEditingWonSale ? (
+                  <p className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    Mode propriétaire: vous pouvez ajouter des fichiers, mais seul un admin peut supprimer un document déjà téléversé.
+                  </p>
+                ) : null}
 
                 <div className="space-y-4 text-left">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1670,7 +1809,7 @@ const Pipeline: React.FC = () => {
                             <input className="ui-input mb-1" value={saleCaptureForm.proof_file_ref} onChange={(e) => setSaleCaptureForm((prev) => ({ ...prev, proof_file_ref: e.target.value }))} placeholder="Référence/nom fichier" />
                             <input
                               type="file"
-                              accept="image/*"
+                              accept="image/*,.pdf,application/pdf"
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file) void uploadSaleAsset(file, 'proof');
@@ -1793,11 +1932,18 @@ const Pipeline: React.FC = () => {
               <div className="space-y-3 rounded-md border border-zinc-200 bg-zinc-50 p-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-semibold text-primary uppercase tracking-wide">Informations vente</h4>
-                  {selectedDealWinDetails && (
-                    <button onClick={() => setIsDealWinDetailsModalOpen(true)} className="ui-btn ui-btn-secondary h-8 px-3 py-0 text-xs">
-                      Voir tout
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {selectedDealWinDetails ? (
+                      <button onClick={() => setIsDealWinDetailsModalOpen(true)} className="ui-btn ui-btn-secondary h-8 px-3 py-0 text-xs">
+                        Voir tout
+                      </button>
+                    ) : null}
+                    {canEditConfirmedSale ? (
+                      <button onClick={openEditConfirmedSale} className="ui-btn ui-btn-primary h-8 px-3 py-0 text-xs">
+                        Modifier
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 {loadingSelectedDealWinDetails ? (
                   <p className="text-sm text-secondary">Chargement...</p>
@@ -1807,6 +1953,20 @@ const Pipeline: React.FC = () => {
                     <p><span className="text-secondary">1ère connexion:</span> {selectedDealWinDetails.first_connection_date || '-'} {selectedDealWinDetails.first_connection_time || ''}</p>
                     <p><span className="text-secondary">Preuve:</span> {selectedDealWinDetails.proof_url ? <a className="text-primary underline" href={selectedDealWinDetails.proof_url} target="_blank" rel="noreferrer">Ouvrir</a> : '-'}</p>
                     <p><span className="text-secondary">Commentaire:</span> {selectedDealWinDetails.sale_comment || '-'}</p>
+                    <div className="sm:col-span-2">
+                      <span className="text-secondary">Formations & organismes:</span>
+                      {getTrainingWithOrganizationList(selectedTrainingIds).length > 0 ? (
+                        <div className="mt-1 space-y-1">
+                          {getTrainingWithOrganizationList(selectedTrainingIds).map((training) => (
+                            <p key={training.title} className="text-sm text-primary">
+                              {training.title} <span className="text-secondary">— {training.organization || 'Organisme non renseigné'}</span>
+                            </p>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="ml-1">-</span>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <p className="text-sm text-secondary">Aucune information vente enregistrée.</p>
@@ -1854,6 +2014,20 @@ const Pipeline: React.FC = () => {
               <p><span className="text-secondary">Enregistrement 1:</span> {selectedDealWinDetails.recording_1_url ? <a href={selectedDealWinDetails.recording_1_url} target="_blank" rel="noreferrer" className="text-primary underline">Ouvrir</a> : '-'}</p>
               <p><span className="text-secondary">Enregistrement 2:</span> {selectedDealWinDetails.recording_2_url ? <a href={selectedDealWinDetails.recording_2_url} target="_blank" rel="noreferrer" className="text-primary underline">Ouvrir</a> : '-'}</p>
               <p><span className="text-secondary">Screen preuve:</span> {selectedDealWinDetails.proof_url ? <a href={selectedDealWinDetails.proof_url} target="_blank" rel="noreferrer" className="text-primary underline">Ouvrir</a> : '-'}</p>
+              <div className="sm:col-span-2">
+                <span className="text-secondary">Formations & organismes:</span>
+                {getTrainingWithOrganizationList(selectedTrainingIds).length > 0 ? (
+                  <div className="mt-1 space-y-1">
+                    {getTrainingWithOrganizationList(selectedTrainingIds).map((training) => (
+                      <p key={training.title}>
+                        {training.title} <span className="text-secondary">— {training.organization || 'Organisme non renseigné'}</span>
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="ml-1">-</span>
+                )}
+              </div>
               <p><span className="text-secondary">Commentaire vente:</span> {selectedDealWinDetails.sale_comment || '-'}</p>
               <p><span className="text-secondary">Commentaire suivi:</span> {selectedDealWinDetails.followup_comment || '-'}</p>
               <p><span className="text-secondary">Commentaire organisme:</span> {selectedDealWinDetails.organization_comment || '-'}</p>

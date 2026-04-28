@@ -16,8 +16,8 @@ export const FilterBar: React.FC<{ className?: string }> = ({ className = '' }) 
       loadingFilters 
   } = useData();
 
-  // If Commercial, don't show filters (they only see their data)
-  if (profile?.role === 'commercial') return null;
+  // Commercial/representant have fixed scoped views.
+  if (profile?.role === 'commercial' || profile?.role === 'representant') return null;
 
   const teamOptions = [
     { value: 'all', label: 'Toutes les equipes' },

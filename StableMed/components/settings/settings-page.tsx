@@ -13,6 +13,7 @@ const SETTINGS_TEAM_CACHE_TTL_MS = 60_000;
 const SETTINGS_TEAMS_CACHE_TTL_MS = 120_000;
 const SETTINGS_INVITES_CACHE_TTL_MS = 45_000;
 const SETTINGS_ROLES_CACHE_TTL_MS = 120_000;
+const SETTINGS_ORGS_CACHE_TTL_MS = 120_000;
 
 const SettingSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="mb-10">
@@ -22,6 +23,14 @@ const SettingSection: React.FC<{ title: string; children: React.ReactNode }> = (
     </div>
   </div>
 );
+
+const roleLabel = (role: string) => {
+  if (role === 'representant') return 'Représentant';
+  if (role === 'commercial') return 'Commercial';
+  if (role === 'manager') return 'Manager';
+  if (role === 'admin') return 'Admin';
+  return role;
+};
 
 const Settings: React.FC = () => {
   const { profile, user, signOut, refreshProfile } = useAuth();
@@ -68,6 +77,8 @@ const Settings: React.FC = () => {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<UserRole>('commercial');
   const [inviteTeamId, setInviteTeamId] = useState<string>('');
+  const [inviteOrganizationScopes, setInviteOrganizationScopes] = useState<string[]>([]);
+  const [availableOrganizations, setAvailableOrganizations] = useState<string[]>([]);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [lastInviteLink, setLastInviteLink] = useState('');
 
@@ -142,7 +153,8 @@ const Settings: React.FC = () => {
   const DEFAULT_PERMISSIONS: RolePermission[] = [
       { role: 'admin', permissions: { can_manage_team: true, can_delete_leads: true, can_export_data: true, can_manage_roles: true, can_manage_catalog: true } },
       { role: 'manager', permissions: { can_manage_team: true, can_delete_leads: false, can_export_data: true, can_manage_roles: false, can_manage_catalog: false } },
-      { role: 'commercial', permissions: { can_manage_team: false, can_delete_leads: false, can_export_data: false, can_manage_roles: false, can_manage_catalog: false } }
+      { role: 'commercial', permissions: { can_manage_team: false, can_delete_leads: false, can_export_data: false, can_manage_roles: false, can_manage_catalog: false } },
+      { role: 'representant', permissions: { can_manage_team: false, can_delete_leads: false, can_export_data: false, can_manage_roles: false, can_manage_catalog: false } }
   ];
 
   useEffect(() => {
@@ -154,7 +166,7 @@ const Settings: React.FC = () => {
 
   useEffect(() => {
     if (activeTab === 'team') {
-        void Promise.all([fetchTeam(), fetchTeams(), fetchInvitations()]);
+        void Promise.all([fetchTeam(), fetchTeams(), fetchInvitations(), fetchOrganizations()]);
     }
     if (activeTab === 'roles') void fetchRoles();
   }, [activeTab]);
@@ -304,7 +316,7 @@ const Settings: React.FC = () => {
 
           const { data, error } = await supabase
             .from('invitations')
-            .select('id,email,role,team_id,token,expires_at,created_at,created_by')
+            .select('id,email,role,team_id,organization_scopes,token,expires_at,created_at,created_by')
             .is('used_at', null)
             .order('created_at', { ascending: false });
           
@@ -339,7 +351,7 @@ const Settings: React.FC = () => {
         setRolePermissions(DEFAULT_PERMISSIONS);
         setCached(cacheKey, DEFAULT_PERMISSIONS);
     } else {
-        const sortOrder: Record<string, number> = { 'admin': 1, 'manager': 2, 'commercial': 3 };
+        const sortOrder: Record<string, number> = { 'admin': 1, 'manager': 2, 'commercial': 3, 'representant': 4 };
         const sortedData = (data as RolePermission[]).sort((a, b) => 
             (sortOrder[a.role] || 99) - (sortOrder[b.role] || 99)
         );
@@ -347,6 +359,31 @@ const Settings: React.FC = () => {
         setCached(cacheKey, sortedData);
     }
     setIsLoadingRoles(false);
+  };
+
+  const fetchOrganizations = async () => {
+    const cacheKey = 'settings:organizations:list';
+    const cached = getCached<string[]>(cacheKey, SETTINGS_ORGS_CACHE_TTL_MS);
+    if (cached) {
+      setAvailableOrganizations(cached);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('trainings')
+      .select('organization')
+      .not('organization', 'is', null)
+      .limit(2000);
+    if (error) return;
+    const organizations = Array.from(
+      new Set(
+        (data ?? [])
+          .map((row: { organization?: string | null }) => (row.organization ?? '').trim())
+          .filter((value: string) => value.length > 0),
+      ),
+    ).sort((a, b) => a.localeCompare(b, 'fr', { sensitivity: 'base' }));
+    setAvailableOrganizations(organizations);
+    setCached(cacheKey, organizations);
   };
 
   const handleUpdateProfile = async () => {
@@ -643,12 +680,17 @@ const Settings: React.FC = () => {
 
   const handleInviteUser = async () => {
       if (!inviteEmail || !user) return;
+      if (inviteRole === 'representant' && inviteOrganizationScopes.length === 0) {
+        addNotification('warning', 'Sélectionnez au moins un organisme pour le rôle Représentant.');
+        return;
+      }
       setIsSendingInvite(true);
       try {
           const { data, error } = await supabase.from('invitations').insert([{
               email: inviteEmail,
               role: inviteRole,
               team_id: inviteTeamId || null,
+              organization_scopes: inviteRole === 'representant' ? inviteOrganizationScopes : null,
               created_by: user.id
           }]).select().single();
 
@@ -660,6 +702,7 @@ const Settings: React.FC = () => {
           invalidateCached('settings:invitations:');
           addNotification('success', 'Invitation créée');
           setInviteEmail('');
+          setInviteOrganizationScopes([]);
       } catch (err: any) {
           if (err.code === '42P01') {
               setShowSqlModal(true); 
@@ -1114,8 +1157,13 @@ const Settings: React.FC = () => {
                                         <div>
                                             <p className="text-sm font-medium text-primary">{invite.email}</p>
                                             <p className="text-xs text-secondary flex gap-2">
-                                                <span>{invite.role}</span> &bull; <span>{new Date(invite.created_at).toLocaleDateString()}</span>
+                                                <span>{roleLabel(invite.role)}</span> &bull; <span>{new Date(invite.created_at).toLocaleDateString()}</span>
                                             </p>
+                                            {invite.role === 'representant' && (invite.organization_scopes?.length ?? 0) > 0 ? (
+                                              <p className="mt-1 text-xs text-secondary">
+                                                Organismes: {(invite.organization_scopes ?? []).join(', ')}
+                                              </p>
+                                            ) : null}
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <button onClick={() => copyInviteLink(`${window.location.origin}/register?token=${invite.token}`)} className="p-2 text-gray-500 hover:text-primary"><Copy size={16} /></button>
@@ -1153,11 +1201,11 @@ const Settings: React.FC = () => {
                                   <td className="px-4 py-3">
                                       {isAdmin ? (
                                           <select value={member.role} onChange={(e) => handleChangeRole(member.id, e.target.value as UserRole)} className="ui-input min-h-0 h-8 cursor-pointer px-2 py-1 text-xs">
-                                              <option value="commercial">Commercial</option><option value="manager">Manager</option><option value="admin">Admin</option>
+                                              <option value="commercial">Commercial</option><option value="manager">Manager</option><option value="representant">Représentant</option><option value="admin">Admin</option>
                                           </select>
                                       ) : (
                                         <span className="inline-flex rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-medium capitalize text-zinc-700">
-                                          {member.role}
+                                          {roleLabel(member.role)}
                                         </span>
                                       )}
                                   </td>
@@ -1503,6 +1551,7 @@ const Settings: React.FC = () => {
                             <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as UserRole)} className="ui-input">
                                 <option value="commercial">Commercial</option>
                                 <option value="manager">Manager</option>
+                                <option value="representant">Représentant</option>
                                 <option value="admin">Admin</option>
                             </select>
                         </div>
@@ -1514,6 +1563,41 @@ const Settings: React.FC = () => {
                             </select>
                         </div>
                     </div>
+                    {inviteRole === 'representant' ? (
+                      <div>
+                        <label className="ui-field-label">Organismes attribués</label>
+                        <div className="max-h-44 overflow-y-auto rounded-md border border-zinc-200 bg-white p-2">
+                          {availableOrganizations.length === 0 ? (
+                            <p className="px-1 py-2 text-xs text-secondary">Aucun organisme trouvé dans le catalogue.</p>
+                          ) : (
+                            <div className="space-y-1">
+                              {availableOrganizations.map((organization) => {
+                                const checked = inviteOrganizationScopes.includes(organization);
+                                return (
+                                  <label key={organization} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-sm hover:bg-zinc-50">
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={(e) => {
+                                        setInviteOrganizationScopes((prev) =>
+                                          e.target.checked
+                                            ? Array.from(new Set([...prev, organization]))
+                                            : prev.filter((value) => value !== organization),
+                                        );
+                                      }}
+                                    />
+                                    <span>{organization}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        <p className="mt-1 text-xs text-secondary">
+                          Le représentant verra uniquement les gagnés/catalogue/dashboard liés à ces organismes.
+                        </p>
+                      </div>
+                    ) : null}
                     <div className="flex justify-end gap-3 pt-4">
                         <button onClick={() => setIsInviteModalOpen(false)} className="ui-btn ui-btn-secondary">Annuler</button>
                         <button onClick={handleInviteUser} disabled={!inviteEmail || isSendingInvite} className="ui-btn ui-btn-primary">

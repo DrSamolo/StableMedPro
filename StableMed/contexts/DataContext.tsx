@@ -193,7 +193,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Default Selection Logic
-    if (normalizedRole === 'commercial') {
+    if (normalizedRole === 'commercial' || normalizedRole === 'representant') {
         setSelectedUserId(profile.id); // Locked to self
         if (profile.team_id) setSelectedTeamId(profile.team_id);
     } else if (isManager && managerEffectiveTeamId) {

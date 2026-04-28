@@ -26,3 +26,4 @@ StableMed/.env
 *.sln
 *.sw?
 .next/
+.vercel

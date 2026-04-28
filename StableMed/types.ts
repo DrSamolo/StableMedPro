@@ -1,7 +1,7 @@
 
 export type ViewState = 'dashboard' | 'tasks' | 'leads' | 'pipeline' | 'sales' | 'catalog' | 'settings' | 'register';
 
-export type UserRole = 'admin' | 'manager' | 'commercial';
+export type UserRole = 'admin' | 'manager' | 'commercial' | 'representant';
 
 export interface Team {
   id: string;
@@ -14,6 +14,7 @@ export interface Invitation {
     email: string;
     role: UserRole;
     team_id?: string;
+    organization_scopes?: string[] | null;
     token: string;
     expires_at: string;
     created_at: string;

@@ -208,7 +208,7 @@ CREATE TABLE IF NOT EXISTS public.trainings (
   target_audience TEXT,
   price NUMERIC DEFAULT 0,
   compensation NUMERIC DEFAULT 0,
-  funder TEXT,
+  funder TEXT DEFAULT 'DPC',
   duration_total TEXT,
   format TEXT,
   instructor_name TEXT,
@@ -237,6 +237,11 @@ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'trainings' AND column_name = 'program_details') THEN
     ALTER TABLE public.trainings ADD COLUMN program_details TEXT;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'trainings' AND column_name = 'funder') THEN
+    ALTER TABLE public.trainings ADD COLUMN funder TEXT DEFAULT 'DPC';
+  ELSE
+    ALTER TABLE public.trainings ALTER COLUMN funder SET DEFAULT 'DPC';
   END IF;
 END $$;
 
@@ -307,6 +312,7 @@ CREATE TABLE IF NOT EXISTS public.invitations (
   email TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'commercial',
   team_id UUID REFERENCES public.teams(id),
+  organization_scopes TEXT[],
   token UUID DEFAULT uuid_generate_v4() NOT NULL,
   expires_at TIMESTAMP WITH TIME ZONE DEFAULT (now() + interval '7 days'),
   created_by UUID REFERENCES public.profiles(id),
@@ -325,6 +331,18 @@ CREATE POLICY "invitations_admin_manager_manage" ON public.invitations
   FOR ALL USING (
     EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'manager'))
   );
+
+-- ------------------------------------------------------------------------------
+-- PROFILE ORGANIZATION SCOPES (REPRESENTANTS)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.profile_organization_scopes (
+  profile_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  organization TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  CONSTRAINT profile_organization_scopes_pk PRIMARY KEY (profile_id, organization)
+);
+
+ALTER TABLE public.profile_organization_scopes ENABLE ROW LEVEL SECURITY;
 
 -- ------------------------------------------------------------------------------
 -- APP SETTINGS
