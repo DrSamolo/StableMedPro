@@ -602,7 +602,7 @@ const Pipeline: React.FC = () => {
   };
 
   const fetchTrainings = async () => {
-      const cacheKey = `trainings:list:${user?.id ?? 'anon'}`;
+      const cacheKey = `trainings:list:v2:${user?.id ?? 'anon'}`;
       const cached = getCached<Training[]>(cacheKey, TRAININGS_CACHE_TTL_MS);
       if (cached) {
           setTrainings(cached);

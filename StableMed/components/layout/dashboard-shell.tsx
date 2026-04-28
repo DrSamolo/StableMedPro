@@ -125,10 +125,15 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       if (!data) return;
       setCached(`catalog:list:${userId}`, data);
       setCached(
-        `trainings:list:${userId}`,
+        `trainings:list:v2:${userId}`,
         data
           .slice(0, 200)
-          .map((item) => ({ id: item.id, title: item.title, price: item.price })),
+          .map((item) => ({
+            id: item.id,
+            title: item.title,
+            price: item.price,
+            organization: item.organization,
+          })),
       );
     };
 

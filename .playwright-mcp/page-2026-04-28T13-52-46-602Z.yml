@@ -1,0 +1,15 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - heading "SudMed CRM" [level=1] [ref=e8]
+    - paragraph [ref=e9]: CRM médical sécurisé sur invitation
+  - generic [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: Email
+      - textbox "nom@exemple.com" [ref=e15]
+    - generic [ref=e16]:
+      - generic [ref=e17]: Mot de passe
+      - textbox "••••••••" [ref=e18]
+    - button "Se connecter" [ref=e19] [cursor=pointer]
+  - generic [ref=e20]:
+    - paragraph [ref=e21]: Vous n'avez pas de compte ? Contactez votre administrateur pour recevoir une invitation.
+    - paragraph [ref=e22]: © 2024 SudMed CRM. Closed Access.

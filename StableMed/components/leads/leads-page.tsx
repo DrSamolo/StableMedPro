@@ -896,7 +896,7 @@ const Leads: React.FC = () => {
   };
 
   const fetchTrainings = async () => {
-    const cacheKey = `trainings:list:${user?.id ?? 'anon'}`;
+    const cacheKey = `trainings:list:v2:${user?.id ?? 'anon'}`;
     const cached = getCached<Training[]>(cacheKey, TRAININGS_CACHE_TTL_MS);
     if (cached) {
       setTrainings(cached);
@@ -904,7 +904,7 @@ const Leads: React.FC = () => {
     }
     const { data } = await supabase
       .from('trainings')
-      .select('id,title,price')
+      .select('id,title,price,organization')
       .order('created_at', { ascending: false })
       .limit(300);
     if (data) {
