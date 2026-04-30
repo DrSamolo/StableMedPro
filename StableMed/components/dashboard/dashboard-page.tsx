@@ -108,7 +108,7 @@ const Dashboard: React.FC = () => {
         const [{ data: deals }, { data: leads }, callStats] = await Promise.all([
             supabase
                 .from('deals')
-                .select('id,title,amount,stage,owner_id,created_at')
+                .select('id,title,amount,stage,owner_id,lead_id,created_at')
                 .order('created_at', { ascending: false })
                 .limit(2000),
             supabase
@@ -258,25 +258,63 @@ const Dashboard: React.FC = () => {
                     .select(`deal_id, training_id, training:trainings (id, title, price)`)
                     .in('deal_id', scopedDealIds.slice(0, 1000));
 
-                if (relations) {
-                    const stats: Record<string, { title: string, count: number, revenue: number }> = {};
-                    relations.forEach((rel: any) => {
-                        if (!rel.training) return;
-                        const tId = rel.training.id;
-                        if (!stats[tId]) stats[tId] = { title: rel.training.title, count: 0, revenue: 0 };
-                        stats[tId].count += 1;
-                        stats[tId].revenue += toWholeEuro(rel.training.price);
+                const stats: Record<string, { title: string, count: number, revenue: number }> = {};
+                const coveredDealIds = new Set<string>();
+
+                (relations ?? []).forEach((rel: any) => {
+                    if (!rel.training || !rel.deal_id) return;
+                    coveredDealIds.add(rel.deal_id);
+                    const tId = rel.training.id;
+                    if (!stats[tId]) stats[tId] = { title: rel.training.title, count: 0, revenue: 0 };
+                    stats[tId].count += 1;
+                    stats[tId].revenue += toWholeEuro(rel.training.price);
+                });
+
+                // Fallback for representative visibility when deal_trainings links are missing:
+                // derive trainings from the linked lead_trainings for scoped deals.
+                const missingDeals = filteredDeals.filter(
+                  (deal: any) => !coveredDealIds.has(deal.id) && typeof deal.lead_id === 'string' && deal.lead_id.length > 0,
+                );
+                const missingLeadIds = Array.from(new Set(missingDeals.map((deal: any) => deal.lead_id)));
+
+                if (missingLeadIds.length > 0) {
+                  const { data: fallbackLeadRelations } = await supabase
+                    .from('lead_trainings')
+                    .select('lead_id, training_id, training:trainings (id, title, price)')
+                    .in('lead_id', missingLeadIds.slice(0, 1000));
+
+                  const trainingsByLeadId = new Map<string, any[]>();
+                  (fallbackLeadRelations ?? []).forEach((row: any) => {
+                    if (!row?.training || !row?.lead_id) return;
+                    const existing = trainingsByLeadId.get(row.lead_id) ?? [];
+                    existing.push(row.training);
+                    trainingsByLeadId.set(row.lead_id, existing);
+                  });
+
+                  missingDeals.forEach((deal: any) => {
+                    const leadTrainings = trainingsByLeadId.get(deal.lead_id) ?? [];
+                    const uniqueByTraining = new Map<string, any>();
+                    leadTrainings.forEach((training) => {
+                      if (training?.id) uniqueByTraining.set(training.id, training);
                     });
-                    const sortedStats = Object.values(stats).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
-                    setTopTrainings(sortedStats);
-                    setCached(cacheKey, {
-                        kpis: nextKpis,
-                        chartData: Array.from(chartMap).map(([name, value]) => ({ name, value })),
-                        activities: mergedActivities,
-                        topTrainings: sortedStats,
-                        topCommercials: sortedCommercials,
+                    uniqueByTraining.forEach((training) => {
+                      const tId = training.id;
+                      if (!stats[tId]) stats[tId] = { title: training.title, count: 0, revenue: 0 };
+                      stats[tId].count += 1;
+                      stats[tId].revenue += toWholeEuro(training.price);
                     });
+                  });
                 }
+
+                const sortedStats = Object.values(stats).sort((a, b) => b.revenue - a.revenue).slice(0, 5);
+                setTopTrainings(sortedStats);
+                setCached(cacheKey, {
+                    kpis: nextKpis,
+                    chartData: Array.from(chartMap).map(([name, value]) => ({ name, value })),
+                    activities: mergedActivities,
+                    topTrainings: sortedStats,
+                    topCommercials: sortedCommercials,
+                });
             } catch (e) {
                 console.warn("Could not load top trainings", e);
             }

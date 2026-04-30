@@ -34,6 +34,7 @@ interface PipelineColumnProps {
   onDragStart: (e: React.DragEvent, id: string) => void;
   onOpenCreate: () => void;
   onSelectDeal: (deal: Deal) => void;
+  canMutate: boolean;
 }
 
 type LeadOption = {
@@ -164,12 +165,13 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
   onDragOver, 
   onDragStart,
   onOpenCreate,
-  onSelectDeal
+  onSelectDeal,
+  canMutate
 }) => (
   <div 
     className="flex h-full min-w-0 w-full flex-col rounded-md border border-zinc-200 bg-zinc-50/40 p-2.5 motion-fade-up"
-    onDrop={(e) => onDrop(e, stage)}
-    onDragOver={onDragOver}
+    onDrop={canMutate ? (e) => onDrop(e, stage) : undefined}
+    onDragOver={canMutate ? onDragOver : undefined}
   >
     <div className="mb-3 flex items-center justify-between px-1 pt-1.5">
       <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">
@@ -183,8 +185,8 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
       {deals.map((deal, idx) => (
         <div 
           key={deal.id} 
-          draggable
-          onDragStart={(e) => onDragStart(e, deal.id)}
+          draggable={canMutate}
+          onDragStart={canMutate ? (e) => onDragStart(e, deal.id) : undefined}
           onClick={() => onSelectDeal(deal)}
           className="group relative cursor-grab rounded-md border border-zinc-200 bg-white p-3.5 shadow-subtle transition-all duration-200 hover:-translate-y-0.5 hover:border-zinc-300 hover:shadow-card active:cursor-grabbing micro-interaction motion-fade-up"
           style={{ animationDelay: `${idx * 50}ms` }}
@@ -242,7 +244,7 @@ const PipelineColumn: React.FC<PipelineColumnProps> = ({
         </div>
       )}
 
-      {stage === 'new' && (
+      {stage === 'new' && canMutate && (
         <button 
             onClick={onOpenCreate}
             className="micro-interaction motion-soft-hover motion-soft-press flex h-9 w-full items-center justify-center gap-2 rounded-md border border-dashed border-zinc-300 bg-white/70 text-[13px] font-medium text-zinc-500 transition-colors hover:border-zinc-400 hover:text-zinc-700"
@@ -294,6 +296,8 @@ const Pipeline: React.FC = () => {
   const [saleCaptureAssetBaseline, setSaleCaptureAssetBaseline] = useState<SaleCaptureAssetBaseline>(buildEmptySaleCaptureAssetBaseline());
   const normalizedRole = (profile?.role ?? '').trim().toLowerCase();
   const isAdmin = normalizedRole === 'admin';
+  const isRepresentant = normalizedRole === 'representant';
+  const canMutatePipeline = !isRepresentant;
   const [isSaleCaptureTrainingPickerOpen, setIsSaleCaptureTrainingPickerOpen] = useState(true);
   const [saleCaptureTrainingSearch, setSaleCaptureTrainingSearch] = useState('');
 
@@ -429,6 +433,7 @@ const Pipeline: React.FC = () => {
   };
 
   const openCreateDealPanel = () => {
+    if (!canMutatePipeline) return;
     setIsModalOpen(true);
     setNewDealTitle('');
     setNewDealAmount(0);
@@ -818,6 +823,10 @@ const Pipeline: React.FC = () => {
   };
 
   const createDeal = async () => {
+    if (!canMutatePipeline) {
+      addNotification('error', 'Le profil représentant est en lecture seule sur le pipeline.');
+      return;
+    }
     if(!user || !newDealTitle) return;
 
     const trainingTitles = trainings
@@ -992,6 +1001,10 @@ const Pipeline: React.FC = () => {
   });
 
   const handleUpdateDeal = async () => {
+    if (!canMutatePipeline) {
+      addNotification('error', 'Le profil représentant ne peut pas modifier une opportunité.');
+      return;
+    }
     if (!selectedDeal) return;
     setIsUpdating(true);
     try {
@@ -1046,6 +1059,10 @@ const Pipeline: React.FC = () => {
   };
 
   const handleDeleteDeal = async () => {
+    if (!canMutatePipeline) {
+      addNotification('error', 'Le profil représentant ne peut pas supprimer une opportunité.');
+      return;
+    }
     if (!selectedDeal) return;
     if (!window.confirm(`Supprimer définitivement l'opportunité "${selectedDeal.leadName}" ?`)) return;
 
@@ -1085,6 +1102,7 @@ const Pipeline: React.FC = () => {
   };
   
   const handleDrop = async (e: React.DragEvent, newStage: Deal['stage']) => {
+    if (!canMutatePipeline) return;
     e.preventDefault();
     const dealId = e.dataTransfer.getData("dealId");
     const deal = deals.find(d => d.id === dealId);
@@ -1110,6 +1128,7 @@ const Pipeline: React.FC = () => {
   };
 
   const updateDealStage = async (dealId: string, newStage: Deal['stage']) => {
+    if (!canMutatePipeline) return;
     let newProb = 20;
     if (newStage === 'new') newProb = 20;
     if (newStage === 'negotiation') newProb = 50;
@@ -1138,6 +1157,10 @@ const Pipeline: React.FC = () => {
   };
 
   const handleConfirmSaleCapture = async () => {
+    if (!canMutatePipeline) {
+      addNotification('error', 'Le profil représentant ne peut pas modifier les ventes.');
+      return;
+    }
     if (!user) return;
     if (isEditingExistingWonSale && saleCaptureDeal && !(isAdmin || isDealOwner(saleCaptureDeal))) {
       addNotification('error', 'Modification réservée au propriétaire de la vente ou à un admin.');
@@ -1402,21 +1425,28 @@ const Pipeline: React.FC = () => {
     void launch();
   }, [saleCaptureUrlHandled, user, deals]);
 
-  const renderMultiSelect = () => (
+  const renderMultiSelect = (readOnly: boolean) => (
      <div className="relative" ref={dropdownRef}>
         <label className="ui-field-label">Formations associées</label>
         <div className="flex flex-wrap gap-2 mb-2">
             {selectedTrainingIds.map(id => {
                 let t = trainings.find(tr => tr.id === id);
                 if (!t && selectedDeal && selectedDeal.trainings) t = selectedDeal.trainings.find(tr => tr.id === id);
-                return t ? (<span key={id} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 border border-gray-200 text-xs font-medium text-primary">{t.title}<button onClick={() => toggleTrainingSelection(id)} className="hover:text-red-500"><X size={12} /></button></span>) : null;
+                return t ? (
+                  <span key={id} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 border border-gray-200 text-xs font-medium text-primary">
+                    {t.title}
+                    {!readOnly ? <button onClick={() => toggleTrainingSelection(id)} className="hover:text-red-500"><X size={12} /></button> : null}
+                  </span>
+                ) : null;
             })}
         </div>
-        <div className="relative">
-            <input type="text" placeholder="Rechercher une formation..." value={trainingSearch} onChange={(e) => { setTrainingSearch(e.target.value); setShowTrainingDropdown(true); }} onFocus={() => setShowTrainingDropdown(true)} className="ui-input pr-8" />
-            <div className="absolute right-2 top-2.5 text-gray-400 pointer-events-none"><Search size={14} /></div>
-        </div>
-        {showTrainingDropdown && (
+        {!readOnly ? (
+          <div className="relative">
+              <input type="text" placeholder="Rechercher une formation..." value={trainingSearch} onChange={(e) => { setTrainingSearch(e.target.value); setShowTrainingDropdown(true); }} onFocus={() => setShowTrainingDropdown(true)} className="ui-input pr-8" />
+              <div className="absolute right-2 top-2.5 text-gray-400 pointer-events-none"><Search size={14} /></div>
+          </div>
+        ) : null}
+        {!readOnly && showTrainingDropdown && (
             <div className="absolute z-10 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-zinc-200 bg-white shadow-card">
                 {trainings.filter(t => t.title.toLowerCase().includes(trainingSearch.toLowerCase())).map(t => (
                     <div key={t.id} onClick={() => { toggleTrainingSelection(t.id); setTrainingSearch(''); }} className={`px-3 py-2 text-sm cursor-pointer flex items-center justify-between hover:bg-gray-50 ${selectedTrainingIds.includes(t.id) ? 'bg-zinc-100' : ''}`}>
@@ -1440,6 +1470,7 @@ const Pipeline: React.FC = () => {
       <div className="mb-6 flex items-center justify-between motion-fade-up">
          <SectionTitle title="Pipeline" subtitle="Gérez vos opportunités en cours" />
          <div className="flex items-center gap-4">
+            {!isRepresentant ? (
             <button 
                 onClick={() => {
                     openSaleCaptureModal('direct', null);
@@ -1448,13 +1479,16 @@ const Pipeline: React.FC = () => {
             >
                 <Award size={16} className="text-zinc-500" /> Ajouter une vente
             </button>
+            ) : null}
 
+            {!isRepresentant ? (
             <button 
                 onClick={openCreateDealPanel}
                 className="ui-btn ui-btn-primary micro-interaction motion-soft-hover motion-soft-press"
             >
                 <Plus size={16} /> <span className="hidden sm:inline">Nouvelle opportunité</span>
             </button>
+            ) : null}
          </div>
       </div>
 
@@ -1499,6 +1533,7 @@ const Pipeline: React.FC = () => {
                         onDragStart={handleDragStart}
                         onOpenCreate={openCreateDealPanel}
                         onSelectDeal={handleSelectDeal}
+                        canMutate={canMutatePipeline}
                     />
                 ))}
             </div>
@@ -1594,7 +1629,7 @@ const Pipeline: React.FC = () => {
                     </div>
                 )}
 
-                {renderMultiSelect()}
+                {renderMultiSelect(!canMutatePipeline)}
                 <div>
                     <label className="ui-field-label">Montant estimé (€)</label>
                     <input type="number" value={newDealAmount} onChange={(e) => setNewDealAmount(Number(e.target.value))} className="ui-input" />
@@ -1889,6 +1924,7 @@ const Pipeline: React.FC = () => {
                     type="text" 
                     value={selectedDeal.leadName}
                     onChange={(e) => setSelectedDeal({...selectedDeal, leadName: e.target.value})}
+                    readOnly={!canMutatePipeline}
                     className="text-xl font-medium text-primary bg-transparent border-none p-0 focus:ring-0 w-full placeholder-gray-300"
                     placeholder="Nom du Deal"
                   />
@@ -1896,7 +1932,7 @@ const Pipeline: React.FC = () => {
                </div>
             </div>
 
-            {profile?.role !== 'commercial' && !compatibilityMode && (
+            {profile?.role !== 'commercial' && !compatibilityMode && canMutatePipeline && (
                 <div className="p-3 bg-gray-50 rounded-md border border-border flex justify-between items-center">
                     <span className="text-secondary text-sm">Responsable</span>
                     <select 
@@ -1909,20 +1945,20 @@ const Pipeline: React.FC = () => {
                 </div>
             )}
 
-            {renderMultiSelect()}
+            {renderMultiSelect(!canMutatePipeline)}
 
             <div className="grid grid-cols-2 gap-4">
                 <div className="rounded-md border border-border bg-gray-50 p-4">
                     <div className="flex items-center gap-2 text-secondary mb-2"><DollarSign size={16} /><span className="text-xs font-medium uppercase">Montant</span></div>
                     <div className="flex items-center">
-                        <input type="number" value={newDealAmount} onChange={(e) => setNewDealAmount(Number(e.target.value))} className="bg-transparent text-2xl font-medium text-primary w-full focus:outline-none" />
+                        <input type="number" value={newDealAmount} onChange={(e) => setNewDealAmount(Number(e.target.value))} readOnly={!canMutatePipeline} className="bg-transparent text-2xl font-medium text-primary w-full focus:outline-none" />
                         <span className="text-secondary ml-1">€</span>
                     </div>
                 </div>
                 <div className="rounded-md border border-border bg-gray-50 p-4">
                     <div className="flex items-center gap-2 text-secondary mb-2"><TrendingUp size={16} /><span className="text-xs font-medium uppercase">Probabilité</span></div>
                     <div className="flex items-center">
-                        <input type="number" value={selectedDeal.probability} onChange={(e) => setSelectedDeal({...selectedDeal, probability: Number(e.target.value)})} className="bg-transparent text-2xl font-medium text-primary w-full focus:outline-none" max={100} min={0} />
+                        <input type="number" value={selectedDeal.probability} onChange={(e) => setSelectedDeal({...selectedDeal, probability: Number(e.target.value)})} readOnly={!canMutatePipeline} className="bg-transparent text-2xl font-medium text-primary w-full focus:outline-none" max={100} min={0} />
                         <span className="text-secondary ml-1">%</span>
                     </div>
                 </div>
@@ -1938,7 +1974,7 @@ const Pipeline: React.FC = () => {
                         Voir tout
                       </button>
                     ) : null}
-                    {canEditConfirmedSale ? (
+                    {canEditConfirmedSale && canMutatePipeline ? (
                       <button onClick={openEditConfirmedSale} className="ui-btn ui-btn-primary h-8 px-3 py-0 text-xs">
                         Modifier
                       </button>
@@ -1980,7 +2016,8 @@ const Pipeline: React.FC = () => {
                     {(['new', 'negotiation', 'closing', 'won'] as const).map(stageOption => (
                         <button
                             key={stageOption}
-                            onClick={() => setSelectedDeal({...selectedDeal, stage: stageOption})}
+                            onClick={() => canMutatePipeline && setSelectedDeal({...selectedDeal, stage: stageOption})}
+                            disabled={!canMutatePipeline}
                             className={`px-4 py-3 rounded-md text-sm font-medium border text-left transition-all ${selectedDeal.stage === stageOption ? 'bg-primary text-white border-primary shadow-md' : 'bg-white text-secondary border-border hover:bg-gray-50'}`}
                         >
                             {stageOption === 'new' && 'Nouveau'}
@@ -1992,12 +2029,14 @@ const Pipeline: React.FC = () => {
                 </div>
             </div>
 
-            <div className="pt-6 border-t border-border flex justify-between items-center">
-                <button onClick={handleDeleteDeal} className="flex items-center gap-2 px-4 py-2 text-rose-600 hover:bg-rose-50 rounded-md text-sm transition-colors"><Trash2 size={16} /> Supprimer</button>
-                <button onClick={handleUpdateDeal} disabled={isUpdating} className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-md text-sm hover:bg-black transition-colors shadow-sm disabled:opacity-70">
-                    {isUpdating ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Enregistrer
-                </button>
-            </div>
+            {canMutatePipeline ? (
+              <div className="pt-6 border-t border-border flex justify-between items-center">
+                  <button onClick={handleDeleteDeal} className="flex items-center gap-2 px-4 py-2 text-rose-600 hover:bg-rose-50 rounded-md text-sm transition-colors"><Trash2 size={16} /> Supprimer</button>
+                  <button onClick={handleUpdateDeal} disabled={isUpdating} className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-md text-sm hover:bg-black transition-colors shadow-sm disabled:opacity-70">
+                      {isUpdating ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Enregistrer
+                  </button>
+              </div>
+            ) : null}
           </div>
         )}
       </SlideOver>

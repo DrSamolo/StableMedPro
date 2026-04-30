@@ -49,6 +49,28 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdmin = normalizedRole === 'admin';
   const isManager = normalizedRole === 'manager';
 
+  const applyRoleDefaultSelection = useCallback(
+    (managerTeamId: string | null) => {
+      if (!profile) return;
+      if (normalizedRole === 'commercial') {
+        setSelectedUserId(profile.id);
+        if (profile.team_id) setSelectedTeamId(profile.team_id);
+        return;
+      }
+      if (normalizedRole === 'representant') {
+        // Representant must rely on backend RLS scope (organizations), not owner-only filtering.
+        setSelectedUserId('all');
+        setSelectedTeamId('all');
+        return;
+      }
+      if (isManager && managerTeamId) {
+        setSelectedUserId('all');
+        setSelectedTeamId(managerTeamId);
+      }
+    },
+    [isManager, normalizedRole, profile],
+  );
+
   // Initialize filters based on Role
   useEffect(() => {
     if (!profile) return;
@@ -115,6 +137,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ) {
       setTeams(filterCache.teams);
       setUsers(filterCache.users);
+      const managerEffectiveTeamId =
+        isManager
+          ? (filterCache.users.find((row) => row.id === profile.id)?.team_id ?? profile.team_id ?? null)
+          : (profile.team_id ?? null);
+      applyRoleDefaultSelection(managerEffectiveTeamId);
       setLoadingFilters(false);
       perfEnd('data.filters');
       return;
@@ -192,18 +219,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
-    // Default Selection Logic
-    if (normalizedRole === 'commercial' || normalizedRole === 'representant') {
-        setSelectedUserId(profile.id); // Locked to self
-        if (profile.team_id) setSelectedTeamId(profile.team_id);
-    } else if (isManager && managerEffectiveTeamId) {
-        setSelectedUserId('all');
-        setSelectedTeamId(managerEffectiveTeamId); // Locked to own team
-    }
+    applyRoleDefaultSelection(managerEffectiveTeamId);
 
     setLoadingFilters(false);
     perfEnd('data.filters');
-  }, [isAdmin, isManager, normalizedRole, profile]);
+  }, [applyRoleDefaultSelection, isAdmin, isManager, profile]);
 
   useEffect(() => {
     const profileId = profile?.id;

@@ -32,6 +32,14 @@ const roleLabel = (role: string) => {
   return role;
 };
 
+const isRepresentantRole = (role: string | null | undefined) =>
+  (role ?? '').trim().toLowerCase() === 'representant';
+
+type ProfileOrganizationScopeRow = {
+  profile_id: string;
+  organization: string;
+};
+
 const Settings: React.FC = () => {
   const { profile, user, signOut, refreshProfile } = useAuth();
   const { addNotification, pushAppNotification } = useNotification();
@@ -53,6 +61,7 @@ const Settings: React.FC = () => {
   const [teams, setTeams] = useState<Team[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [isLoadingTeam, setIsLoadingTeam] = useState(false);
+  const [profileOrganizationScopes, setProfileOrganizationScopes] = useState<Map<string, string[]>>(new Map());
   
   // Create Team State
   const [newTeamName, setNewTeamName] = useState('');
@@ -81,6 +90,10 @@ const Settings: React.FC = () => {
   const [availableOrganizations, setAvailableOrganizations] = useState<string[]>([]);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
   const [lastInviteLink, setLastInviteLink] = useState('');
+  const [isRepresentantScopesModalOpen, setIsRepresentantScopesModalOpen] = useState(false);
+  const [representantScopesMember, setRepresentantScopesMember] = useState<Profile | null>(null);
+  const [editingRepresentantScopes, setEditingRepresentantScopes] = useState<string[]>([]);
+  const [isSavingRepresentantScopes, setIsSavingRepresentantScopes] = useState(false);
 
   // Roles & Permissions State
   const [rolePermissions, setRolePermissions] = useState<RolePermission[]>([]);
@@ -166,7 +179,13 @@ const Settings: React.FC = () => {
 
   useEffect(() => {
     if (activeTab === 'team') {
-        void Promise.all([fetchTeam(), fetchTeams(), fetchInvitations(), fetchOrganizations()]);
+        void Promise.all([
+          fetchTeam(),
+          fetchTeams(),
+          fetchInvitations(),
+          fetchOrganizations(),
+          fetchProfileOrganizationScopes(),
+        ]);
     }
     if (activeTab === 'roles') void fetchRoles();
   }, [activeTab]);
@@ -386,6 +405,28 @@ const Settings: React.FC = () => {
     setCached(cacheKey, organizations);
   };
 
+  const fetchProfileOrganizationScopes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profile_organization_scopes')
+        .select('profile_id,organization')
+        .order('organization', { ascending: true });
+      if (error) throw error;
+
+      const next = new Map<string, string[]>();
+      for (const row of (data ?? []) as ProfileOrganizationScopeRow[]) {
+        const cleaned = (row.organization ?? '').trim();
+        if (!cleaned) continue;
+        const existing = next.get(row.profile_id) ?? [];
+        existing.push(cleaned);
+        next.set(row.profile_id, existing);
+      }
+      setProfileOrganizationScopes(next);
+    } catch (error: any) {
+      console.warn('Fetch profile organization scopes error:', error?.message || error);
+    }
+  };
+
   const handleUpdateProfile = async () => {
     if (!profile) return;
     setIsSaving(true);
@@ -489,7 +530,76 @@ const Settings: React.FC = () => {
         invalidateCached('settings:team-members:');
         addNotification('success', "Rôle mis à jour.");
         setTeamMembers(prev => prev.map(m => m.id === userId ? { ...m, role: newRole } : m));
+        if (newRole !== 'representant') {
+          setProfileOrganizationScopes((prev) => {
+            if (!prev.has(userId)) return prev;
+            const next = new Map(prev);
+            next.delete(userId);
+            return next;
+          });
+        }
     }
+  };
+
+  const openRepresentantScopesModal = (member: Profile) => {
+    if (!isAdmin) {
+      addNotification('error', 'Réservé aux admins.');
+      return;
+    }
+    setRepresentantScopesMember(member);
+    setEditingRepresentantScopes(profileOrganizationScopes.get(member.id) ?? []);
+    setIsRepresentantScopesModalOpen(true);
+  };
+
+  const toggleEditingRepresentantScope = (organization: string, checked: boolean) => {
+    setEditingRepresentantScopes((prev) =>
+      checked
+        ? Array.from(new Set([...prev, organization]))
+        : prev.filter((value) => value !== organization),
+    );
+  };
+
+  const saveRepresentantScopes = async () => {
+    if (!isAdmin || !representantScopesMember?.id) return;
+    setIsSavingRepresentantScopes(true);
+    try {
+      const sanitizedScopes = Array.from(
+        new Set(editingRepresentantScopes.map((value) => value.trim()).filter(Boolean)),
+      );
+      const { data, error } = await supabase.rpc('set_profile_organization_scopes', {
+        p_profile_id: representantScopesMember.id,
+        p_organizations: sanitizedScopes,
+      });
+      if (error) throw error;
+
+      setProfileOrganizationScopes((prev) => {
+        const next = new Map(prev);
+        if (sanitizedScopes.length === 0) next.delete(representantScopesMember.id);
+        else next.set(representantScopesMember.id, sanitizedScopes);
+        return next;
+      });
+
+      addNotification(
+        'success',
+        sanitizedScopes.length > 0
+          ? `Organismes mis à jour (${data ?? sanitizedScopes.length}).`
+          : 'Organismes supprimés.',
+      );
+      setIsRepresentantScopesModalOpen(false);
+      setRepresentantScopesMember(null);
+      setEditingRepresentantScopes([]);
+    } catch (error: any) {
+      addNotification('error', `Erreur scopes: ${error.message}`);
+    } finally {
+      setIsSavingRepresentantScopes(false);
+    }
+  };
+
+  const handleMemberRowClick = (event: React.MouseEvent, member: Profile) => {
+    if (!isAdmin || !isRepresentantRole(member.role)) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button,select,input,a,label,textarea')) return;
+    openRepresentantScopesModal(member);
   };
 
   const handleChangeTeam = async (userId: string, teamId: string) => {
@@ -1191,7 +1301,11 @@ const Settings: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-border">
                           {teamMembers.map((member) => (
-                              <tr key={member.id} className="ui-table-row">
+                              <tr
+                                key={member.id}
+                                onClick={(event) => handleMemberRowClick(event, member)}
+                                className={`ui-table-row ${isAdmin && isRepresentantRole(member.role) ? 'cursor-pointer hover:bg-zinc-50/60' : ''}`}
+                              >
                                   <td className="px-4 py-3">
                                       <div className="flex items-center gap-3">
                                           <Avatar name={member.full_name || member.email} size="sm" />
@@ -1208,6 +1322,13 @@ const Settings: React.FC = () => {
                                           {roleLabel(member.role)}
                                         </span>
                                       )}
+                                      {isRepresentantRole(member.role) ? (
+                                        <div className="mt-1 text-[11px] leading-4 text-secondary">
+                                          Organismes: {(profileOrganizationScopes.get(member.id) ?? []).length > 0
+                                            ? (profileOrganizationScopes.get(member.id) ?? []).join(', ')
+                                            : 'Aucun'}
+                                        </div>
+                                      ) : null}
                                   </td>
                                   <td className="px-4 py-3">
                                       {isAdmin ? (
@@ -1618,6 +1739,74 @@ const Settings: React.FC = () => {
                 </div>
             )}
          </div>
+      </Modal>
+
+      <Modal
+        isOpen={isRepresentantScopesModalOpen}
+        onClose={() => {
+          if (isSavingRepresentantScopes) return;
+          setIsRepresentantScopesModalOpen(false);
+          setRepresentantScopesMember(null);
+          setEditingRepresentantScopes([]);
+        }}
+      >
+        <div className="w-full max-w-lg rounded-md bg-surface p-6">
+          <h3 className="text-lg font-medium text-primary">Organismes du représentant</h3>
+          <p className="mt-1 text-sm text-secondary">
+            {representantScopesMember?.full_name || representantScopesMember?.email || 'Utilisateur'}
+          </p>
+
+          <div className="mt-4">
+            <label className="ui-field-label">Sélection des organismes</label>
+            <div className="max-h-56 overflow-y-auto rounded-md border border-zinc-200 bg-white p-2">
+              {availableOrganizations.length === 0 ? (
+                <p className="px-1 py-2 text-xs text-secondary">Aucun organisme trouvé dans le catalogue.</p>
+              ) : (
+                <div className="space-y-1">
+                  {availableOrganizations.map((organization) => {
+                    const checked = editingRepresentantScopes.includes(organization);
+                    return (
+                      <label key={organization} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-zinc-50">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => toggleEditingRepresentantScope(organization, e.target.checked)}
+                        />
+                        <span>{organization}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-secondary">
+              Sélection actuelle: {editingRepresentantScopes.length} organisme{editingRepresentantScopes.length > 1 ? 's' : ''}
+            </p>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              onClick={() => {
+                if (isSavingRepresentantScopes) return;
+                setIsRepresentantScopesModalOpen(false);
+                setRepresentantScopesMember(null);
+                setEditingRepresentantScopes([]);
+              }}
+              className="ui-btn ui-btn-secondary"
+              disabled={isSavingRepresentantScopes}
+            >
+              Annuler
+            </button>
+            <button
+              onClick={saveRepresentantScopes}
+              className="ui-btn ui-btn-primary"
+              disabled={isSavingRepresentantScopes}
+            >
+              {isSavingRepresentantScopes ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              Enregistrer
+            </button>
+          </div>
+        </div>
       </Modal>
 
       {/* SQL Warning Modal */}
